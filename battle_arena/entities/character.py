@@ -8,16 +8,16 @@ class Character:
         self.name = name
         self.level = 1
         
-        # Base stats
-        self.strength = 10
-        self.speed = 10
+        # Base stats - minimum values each character starts with
+        self.strength = 5
+        self.speed = 5
         self.armor = 5
         
         # Apply custom stats if provided
         if stats:
             self.strength += stats.get('strength', 0)
-            self.speed += stats.get('speed', 0)
-            self.armor += stats.get('armor', 0)
+            self.speed += stats.get('agility', 0)  # Map agility to speed
+            self.armor += stats.get('defense', 0)  # Map defense to armor
         
         # Calculated stats
         self.max_health = 80 + (self.strength * 2)

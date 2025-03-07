@@ -4,7 +4,9 @@ from entities.character import Character
 
 class Enemy(Character):
     def __init__(self, name, level):
-        super().__init__(name, "Enemy")  # Reuse Character's init
+    # Create a stats dictionary for the Enemy
+        enemy_stats = {'strength': 0, 'speed': 0, 'armor': 0}
+        super().__init__(name, enemy_stats)  # Pass stats dictionary to Character's init
         self.level = level
         self.max_health = 50 + (level * 10)
         self.health = self.max_health

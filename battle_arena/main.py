@@ -37,13 +37,26 @@ def main():
         Button(WIDTH/2 - 100, 320, 200, 50, "Exit")
     ]
     
-    # Character creation buttons
-    char_creation_buttons = [
-        Button(WIDTH/2 - 300, 240, 180, 40, WARRIOR),
-        Button(WIDTH/2 - 90, 240, 180, 40, ROGUE),
-        Button(WIDTH/2 + 120, 240, 180, 40, KNIGHT),
-        Button(WIDTH/2 - 100, 350, 200, 50, "Create Character")
-    ]
+    # Character creation stat buttons
+    char_creation_buttons = []
+    
+    # Stat increase/decrease buttons for each stat
+    y_position = 240
+    for stat in game_state.current_stats.keys():
+        # Decrease button
+        char_creation_buttons.append(
+            Button(WIDTH/2 - 180, y_position, 30, 30, "-", color=RED)
+        )
+        # Increase button
+        char_creation_buttons.append(
+            Button(WIDTH/2 - 30, y_position, 30, 30, "+", color=GREEN)
+        )
+        y_position += 50
+    
+    # Create character button
+    char_creation_buttons.append(
+        Button(WIDTH/2 - 100, 400, 200, 50, "Create Character")
+    )
     
     # Arena menu buttons
     arena_buttons = [
@@ -88,8 +101,8 @@ def main():
                     if event.key == pygame.K_BACKSPACE:
                         game_state.input_name = game_state.input_name[:-1]
                     elif event.key == pygame.K_RETURN:
-                        if game_state.selected_class and game_state.input_name:
-                            game_state.player = Character(game_state.input_name, game_state.selected_class)
+                        if game_state.get_remaining_points() == 0 and game_state.input_name:
+                            game_state.player = Character(game_state.input_name, game_state.current_stats)
                             game_state.change_state(GameState.STATE_ARENA_MENU)
                     else:
                         # Limit name length and only add printable characters
@@ -104,7 +117,7 @@ def main():
                     if button.text == "New Game":
                         game_state.change_state(GameState.STATE_CHARACTER_CREATION)
                         game_state.input_name = "Hero"  # Reset default name
-                        game_state.selected_class = None
+                        game_state.current_stats = {'strength': 0, 'speed': 0, 'armor': 0}
                     elif button.text == "Exit":
                         running = False
             
@@ -116,15 +129,24 @@ def main():
             for i, button in enumerate(char_creation_buttons):
                 button.check_hover(mouse_pos)
                 if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
-                    if i < 3:  # Class selection buttons
-                        game_state.selected_class = button.text
-                    elif button.text == "Create Character" and game_state.selected_class and game_state.input_name:
-                        game_state.player = Character(game_state.input_name, game_state.selected_class)
-                        game_state.change_state(GameState.STATE_ARENA_MENU)
-                        game_state.battles_won = 0
+                    if i < len(char_creation_buttons) - 1:  # Stat buttons
+                        stat_index = i // 2
+                        stat_key = list(game_state.current_stats.keys())[stat_index]
+                        
+                        if i % 2 == 0:  # Decrease button
+                            if game_state.current_stats[stat_key] > 0:
+                                game_state.current_stats[stat_key] -= 1
+                        else:  # Increase button
+                            if game_state.get_remaining_points() > 0:
+                                game_state.current_stats[stat_key] += 1
+                    elif button.text == "Create Character":
+                        if game_state.get_remaining_points() == 0 and game_state.input_name:
+                            game_state.player = Character(game_state.input_name, game_state.current_stats)
+                            game_state.change_state(GameState.STATE_ARENA_MENU)
+                            game_state.battles_won = 0
             
             # Draw character creation
-            draw_character_creation(screen, char_creation_buttons, game_state.input_name, game_state.selected_class, fonts)
+            draw_character_creation(screen, char_creation_buttons, game_state, fonts)
                 
         # Arena menu state
         elif game_state.current_state == GameState.STATE_ARENA_MENU:
@@ -233,6 +255,7 @@ def main():
                 
             # Draw character stats
             draw_character_stats(screen, game_state.player, stats_back_button, fonts)   
+            
         # Game over state
         elif game_state.current_state == GameState.STATE_GAME_OVER:
             for button in game_over_buttons:
@@ -241,7 +264,7 @@ def main():
                     if button.text == "New Game":
                         game_state.change_state(GameState.STATE_CHARACTER_CREATION)
                         game_state.input_name = "Hero"
-                        game_state.selected_class = None
+                        game_state.current_stats = {'strength': 0, 'speed': 0, 'armor': 0}
                     elif button.text == "Exit":
                         running = False
                         

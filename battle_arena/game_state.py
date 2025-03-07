@@ -21,9 +21,12 @@ class GameState:
         self.stat_points = 15  # Total points to distribute
         self.current_stats = {
             'strength': 0, 
-            'speed': 0, 
-            'armor': 0
+            'agility': 0,  # Renamed from 'speed' for clarity
+            'defense': 0   # Renamed from 'armor' for clarity
         }
+        
+        # Stat button detection rects
+        self.stat_buttons = {}
     
     def change_state(self, new_state):
         self.current_state = new_state
@@ -46,3 +49,17 @@ class GameState:
         """Calculate remaining stat points"""
         used_points = sum(self.current_stats.values())
         return self.stat_points - used_points
+    
+    def increase_stat(self, stat_name):
+        """Increase a stat if points are available"""
+        if self.get_remaining_points() > 0:
+            self.current_stats[stat_name] += 1
+            return True
+        return False
+    
+    def decrease_stat(self, stat_name):
+        """Decrease a stat if it's above 0"""
+        if self.current_stats[stat_name] > 0:
+            self.current_stats[stat_name] -= 1
+            return True
+        return False
