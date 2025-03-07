@@ -1,8 +1,7 @@
 # ui/screens.py
-# ui/screens.py
 import pygame
 from constants import WHITE, GOLD, BLACK, RED, BLUE, WIDTH, HEIGHT
-from ui.drawing import draw_health_bar, draw_battle_arena  # Import both functions
+from ui.drawing import draw_health_bar, draw_battle_arena
 
 def draw_main_menu(surface, buttons, fonts):
     """Draw the main menu screen"""
@@ -18,8 +17,8 @@ def draw_main_menu(surface, buttons, fonts):
     for button in buttons:
         button.draw(surface)
 
-def draw_character_creation(surface, buttons, input_name, selected_class, fonts):
-    """Draw the character creation screen"""
+def draw_character_creation(surface, buttons, game_state, fonts):
+    """Draw the character creation screen with stat distribution"""
     # Background
     surface.fill((30, 30, 50))
     
@@ -34,28 +33,40 @@ def draw_character_creation(surface, buttons, input_name, selected_class, fonts)
     surface.blit(name_label, (WIDTH/2 - 150, 110))
     
     # Display entered name
-    name_text = fonts['medium'].render(input_name, True, WHITE)
+    name_text = fonts['medium'].render(game_state.input_name, True, WHITE)
     surface.blit(name_text, (WIDTH/2 - 140, 150))
     
-    # Class selection
-    class_label = fonts['medium'].render("Select Class:", True, WHITE)
-    surface.blit(class_label, (WIDTH/2 - 150, 200))
+    # Stat distribution title
+    stat_title = fonts['medium'].render(f"Distribute Stat Points: {game_state.get_remaining_points()} remaining", True, WHITE)
+    surface.blit(stat_title, (WIDTH/2 - 150, 200))
     
-    # Class info
-    if selected_class:
-        class_info = {
-            "Warrior": "High Strength and Health. Born for battle.",
-            "Rogue": "High Speed. Masters of evasion and quick strikes.",
-            "Knight": "High Armor. Well-protected defenders."
-        }
+    # Stat explanations
+    stat_explanations = {
+        'strength': "Increases damage and health",
+        'speed': "Improves accuracy and stamina",
+        'armor': "Reduces damage taken"
+    }
+    
+    # Draw stat distribution bars and values
+    y_position = 240
+    for i, (stat, value) in enumerate(game_state.current_stats.items()):
+        # Stat name and value
+        stat_text = fonts['medium'].render(f"{stat.capitalize()}: {value}", True, GOLD)
+        surface.blit(stat_text, (WIDTH/2 - 150, y_position))
         
-        class_text = fonts['large'].render(selected_class, True, GOLD)
-        surface.blit(class_text, (WIDTH/2 - 100, 240))
+        # Stat explanation
+        explanation = fonts['small'].render(stat_explanations[stat], True, WHITE)
+        surface.blit(explanation, (WIDTH/2 + 50, y_position))
         
-        # Class description
-        desc = class_info.get(selected_class, "")
-        desc_text = fonts['small'].render(desc, True, WHITE)
-        surface.blit(desc_text, (WIDTH/2 - 150, 290))
+        y_position += 50
+    
+    # Stat point info
+    points_text = fonts['medium'].render(
+        f"You have {game_state.get_remaining_points()} points remaining", 
+        True, 
+        WHITE if game_state.get_remaining_points() > 0 else RED
+    )
+    surface.blit(points_text, (WIDTH/2 - 150, y_position))
     
     # Draw buttons
     for button in buttons:
@@ -112,7 +123,7 @@ def draw_character_stats(surface, player, button, fonts):
     surface.blit(title_text, title_rect)
     
     # Character basic info
-    info_text = fonts['large'].render(f"{player.name} - {player.character_class}", True, GOLD)
+    info_text = fonts['large'].render(f"{player.name}", True, GOLD)
     info_rect = info_text.get_rect(center=(WIDTH/2, 100))
     surface.blit(info_text, info_rect)
     

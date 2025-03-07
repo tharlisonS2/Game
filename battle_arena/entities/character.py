@@ -4,15 +4,28 @@ import random
 from constants import RED, GREEN, BLUE, WHITE, BROWN
 
 class Character:
-    def __init__(self, name, character_class):
+    def __init__(self, name, stats=None):
         self.name = name
-        self.character_class = character_class
         self.level = 1
-        self.max_health = 100
-        self.health = self.max_health
+        
+        # Base stats
         self.strength = 10
         self.speed = 10
         self.armor = 5
+        
+        # Apply custom stats if provided
+        if stats:
+            self.strength += stats.get('strength', 0)
+            self.speed += stats.get('speed', 0)
+            self.armor += stats.get('armor', 0)
+        
+        # Calculated stats
+        self.max_health = 80 + (self.strength * 2)
+        self.health = self.max_health
+        self.max_stamina = 80 + (self.speed * 2)
+        self.stamina = self.max_stamina
+        
+        # Other character attributes
         self.gold = 50
         self.experience = 0
         self.exp_to_level = 100
@@ -24,21 +37,7 @@ class Character:
             "Quick Strike": {"damage": 0.8, "accuracy": 0.9, "stamina_cost": 10},
             "Heavy Strike": {"damage": 1.5, "accuracy": 0.7, "stamina_cost": 20}
         }
-        self.max_stamina = 100
-        self.stamina = self.max_stamina
         
-        # Apply class bonuses
-        if character_class == "Warrior":
-            self.strength += 5
-            self.max_health += 20
-            self.health = self.max_health
-        elif character_class == "Rogue":
-            self.speed += 5
-            self.armor += 2
-        elif character_class == "Knight":
-            self.armor += 5
-            self.strength += 2
-            
         # Animation state
         self.is_attacking = False
         self.attack_frame = 0
@@ -121,12 +120,14 @@ class Character:
         self.exp_to_level = int(self.exp_to_level * 1.5)
         
         # Stat increases
-        self.max_health += 10
-        self.health = self.max_health
         self.strength += 2
         self.speed += 1
         self.armor += 1
-        self.max_stamina += 10
+        
+        # Update calculated stats
+        self.max_health = 80 + (self.strength * 2)
+        self.health = self.max_health
+        self.max_stamina = 80 + (self.speed * 2)
         self.stamina = self.max_stamina
         
         return f"{self.name} has reached level {self.level}! Your attributes have increased!"

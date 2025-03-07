@@ -18,7 +18,12 @@ class GameState:
         
         # Character creation variables
         self.input_name = "Hero"
-        self.selected_class = None
+        self.stat_points = 15  # Total points to distribute
+        self.current_stats = {
+            'strength': 0, 
+            'speed': 0, 
+            'armor': 0
+        }
     
     def change_state(self, new_state):
         self.current_state = new_state
@@ -36,3 +41,8 @@ class GameState:
     
     def increment_battles_won(self):
         self.battles_won += 1
+        
+    def get_remaining_points(self):
+        """Calculate remaining stat points"""
+        used_points = sum(self.current_stats.values())
+        return self.stat_points - used_points
