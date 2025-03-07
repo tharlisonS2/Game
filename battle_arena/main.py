@@ -20,6 +20,14 @@ def main():
     pygame.display.set_caption("Battle Arena")
     clock = pygame.time.Clock()
     
+    # Initialize fonts
+    fonts = {
+        'small': pygame.font.SysFont('Arial', 18),
+        'medium': pygame.font.SysFont('Arial', 24),
+        'large': pygame.font.SysFont('Arial', 32),
+        'title': pygame.font.SysFont('Arial', 48, bold=True)
+    }
+    
     # Initialize game state
     game_state = GameState()
     
@@ -101,7 +109,7 @@ def main():
                         running = False
             
             # Draw main menu
-            draw_main_menu(screen, main_menu_buttons)
+            draw_main_menu(screen, main_menu_buttons, fonts)
                 
         # Character creation state
         elif game_state.current_state == GameState.STATE_CHARACTER_CREATION:
@@ -116,7 +124,7 @@ def main():
                         game_state.battles_won = 0
             
             # Draw character creation
-            draw_character_creation(screen, char_creation_buttons, game_state.input_name, game_state.selected_class)
+            draw_character_creation(screen, char_creation_buttons, game_state.input_name, game_state.selected_class, fonts)
                 
         # Arena menu state
         elif game_state.current_state == GameState.STATE_ARENA_MENU:
@@ -152,7 +160,7 @@ def main():
                         game_state.change_state(GameState.STATE_GAME_OVER)
             
             # Draw arena menu
-            draw_arena_menu(screen, game_state.player, arena_buttons, game_state.battles_won)
+            draw_arena_menu(screen, game_state.player, arena_buttons, game_state.battles_won, fonts)
                 
         # Battle state
         elif game_state.current_state == GameState.STATE_BATTLE:
@@ -211,8 +219,7 @@ def main():
                 game_state.battle_action_delay -= 1
             
             # Draw battle screen
-            draw_battle_arena(screen, game_state.player, game_state.enemy, game_state.battle_log)
-            
+            draw_battle_arena(screen, game_state.player, game_state.enemy, game_state.battle_log, fonts)
             # Only draw buttons during player's turn
             if game_state.battle_turn == "player":
                 for button in battle_buttons:
@@ -225,8 +232,7 @@ def main():
                 game_state.change_state(GameState.STATE_ARENA_MENU)
                 
             # Draw character stats
-            draw_character_stats(screen, game_state.player, stats_back_button)
-                
+            draw_character_stats(screen, game_state.player, stats_back_button, fonts)   
         # Game over state
         elif game_state.current_state == GameState.STATE_GAME_OVER:
             for button in game_over_buttons:
@@ -240,7 +246,7 @@ def main():
                         running = False
                         
             # Draw game over screen
-            draw_game_over(screen, game_state.player, game_state.battles_won, game_over_buttons)
+            draw_game_over(screen, game_state.player, game_state.battles_won, game_over_buttons, fonts)
         
         # Update display
         pygame.display.flip()

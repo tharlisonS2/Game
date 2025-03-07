@@ -1,6 +1,8 @@
 # ui/screens.py
+# ui/screens.py
 import pygame
 from constants import WHITE, GOLD, BLACK, RED, BLUE, WIDTH, HEIGHT
+from ui.drawing import draw_health_bar, draw_battle_arena  # Import both functions
 
 def draw_main_menu(surface, buttons, fonts):
     """Draw the main menu screen"""
