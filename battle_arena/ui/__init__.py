@@ -1,5 +1,5 @@
 from .button import Button
-from .drawing import draw_health_bar, draw_battle_arena  # Import from drawing, not screens
+from .drawing import draw_health_bar, draw_battle_arena  # Already imported correctly
 from .screens import (
     draw_main_menu,
     draw_character_creation,

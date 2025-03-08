@@ -24,8 +24,8 @@ def draw_health_bar(surface, x, y, width, height, value, max_value, border_color
     # Draw border
     pygame.draw.rect(surface, border_color, (x, y, width, height), 2)
 
-def draw_battle_arena(surface, player, enemy, battle_log, fonts):
-    """Draw the battle arena screen"""
+def draw_battle_arena(surface, player, enemy, battle_log, battle_turn, fonts):
+    """Draw the battle arena screen with improved HUD showing health and stamina bars"""
     # Background
     surface.fill((50, 50, 100))  # Dark blue background for arena
     
@@ -36,9 +36,72 @@ def draw_battle_arena(surface, player, enemy, battle_log, fonts):
     player.draw(surface)
     enemy.draw(surface)
     
+    # Draw battle HUD
+    title_text = fonts['large'].render("BATTLE", True, WHITE)
+    title_rect = title_text.get_rect(midtop=(WIDTH/2, 20))
+    surface.blit(title_text, title_rect)
+    
+    # Player HUD - Left side
+    player_hud_rect = pygame.Rect(20, 70, 220, 100)
+    pygame.draw.rect(surface, (0, 0, 0, 128), player_hud_rect)
+    
+    # Highlight active turn
+    if battle_turn == "player":
+        pygame.draw.rect(surface, GOLD, player_hud_rect, 3)
+    else:
+        pygame.draw.rect(surface, WHITE, player_hud_rect, 2)
+    
+    # Player name and level
+    player_name = fonts['medium'].render(f"{player.name} Lvl:{player.level}", True, WHITE)
+    surface.blit(player_name, (player_hud_rect.x + 10, player_hud_rect.y + 10))
+    
+    # Player health bar
+    health_label = fonts['small'].render(f"HP: {player.health}/{player.max_health}", True, WHITE)
+    surface.blit(health_label, (player_hud_rect.x + 10, player_hud_rect.y + 40))
+    draw_health_bar(surface, player_hud_rect.x + 10, player_hud_rect.y + 60, 
+                    200, 10, player.health, player.max_health)
+    
+    # Player stamina bar
+    stamina_label = fonts['small'].render(f"SP: {player.stamina}/{player.max_stamina}", True, WHITE)
+    surface.blit(stamina_label, (player_hud_rect.x + 10, player_hud_rect.y + 75))
+    draw_health_bar(surface, player_hud_rect.x + 10, player_hud_rect.y + 95, 
+                    200, 10, player.stamina, player.max_stamina, fill_color=BLUE)
+    
+    # Enemy HUD - Right side
+    enemy_hud_rect = pygame.Rect(WIDTH - 240, 70, 220, 100)
+    pygame.draw.rect(surface, (0, 0, 0, 128), enemy_hud_rect)
+    
+    # Highlight active turn
+    if battle_turn == "enemy":
+        pygame.draw.rect(surface, GOLD, enemy_hud_rect, 3)
+    else:
+        pygame.draw.rect(surface, WHITE, enemy_hud_rect, 2)
+    
+    # Enemy name and level
+    enemy_name = fonts['medium'].render(f"{enemy.name} Lvl:{enemy.level}", True, WHITE)
+    enemy_name_rect = enemy_name.get_rect(topleft=(enemy_hud_rect.x + 10, enemy_hud_rect.y + 10))
+    surface.blit(enemy_name, enemy_name_rect)
+    
+    # Enemy health bar
+    enemy_health = fonts['small'].render(f"HP: {enemy.health}/{enemy.max_health}", True, WHITE)
+    surface.blit(enemy_health, (enemy_hud_rect.x + 10, enemy_hud_rect.y + 40))
+    draw_health_bar(surface, enemy_hud_rect.x + 10, enemy_hud_rect.y + 60, 
+                    200, 10, enemy.health, enemy.max_health)
+    
+    # Enemy stamina bar
+    enemy_stamina = fonts['small'].render(f"SP: {enemy.stamina}/{enemy.max_stamina}", True, WHITE)
+    surface.blit(enemy_stamina, (enemy_hud_rect.x + 10, enemy_hud_rect.y + 75))
+    draw_health_bar(surface, enemy_hud_rect.x + 10, enemy_hud_rect.y + 95, 
+                    200, 10, enemy.stamina, enemy.max_stamina, fill_color=BLUE)
+    
+    # Turn indicator text
+    turn_text = fonts['medium'].render(f"{battle_turn.capitalize()}'s Turn", True, GOLD)
+    turn_rect = turn_text.get_rect(center=(WIDTH/2, 85))
+    surface.blit(turn_text, turn_rect)
+    
     # Battle log (last 5 messages)
-    log_height = 150
-    log_rect = pygame.Rect(50, HEIGHT - log_height - 20, WIDTH - 100, log_height)
+    log_height = 120
+    log_rect = pygame.Rect(50, HEIGHT - log_height - 100, WIDTH - 100, log_height)
     pygame.draw.rect(surface, (0, 0, 0, 180), log_rect)  # Semi-transparent background
     pygame.draw.rect(surface, WHITE, log_rect, 2)  # Border
     
@@ -46,20 +109,6 @@ def draw_battle_arena(surface, player, enemy, battle_log, fonts):
     for i, msg in enumerate(battle_log[-5:]):
         text = fonts['small'].render(msg, True, WHITE)
         surface.blit(text, (log_rect.x + 10, log_rect.y + 10 + i * 25))
-    
-    # Draw battle HUD
-    title_text = fonts['large'].render("BATTLE", True, WHITE)
-    title_rect = title_text.get_rect(midtop=(WIDTH/2, 20))
-    surface.blit(title_text, title_rect)
-    
-    # Player stats
-    player_level = fonts['small'].render(f"Lvl: {player.level}", True, WHITE)
-    surface.blit(player_level, (20, 20))
-    
-    # Enemy level
-    enemy_level = fonts['small'].render(f"Lvl: {enemy.level}", True, WHITE)
-    level_rect = enemy_level.get_rect(topright=(WIDTH-20, 20))
-    surface.blit(enemy_level, level_rect)
     
 # Modified version of CHARACTER CREATION in ui/screens.py
 def draw_character_creation(surface, buttons, input_name, current_stats, total_points, fonts):

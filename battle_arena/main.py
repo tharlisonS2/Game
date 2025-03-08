@@ -78,6 +78,7 @@ def main():
     
     # Game over buttons
     game_over_buttons = [
+        Button(WIDTH/2 - 100, 330, 200, 50, "Return to Main Menu"),
         Button(WIDTH/2 - 100, 400, 200, 50, "New Game"),
         Button(WIDTH/2 - 100, 470, 200, 50, "Exit")
     ]
@@ -192,60 +193,61 @@ def main():
             
             # Handle battle turns
             if game_state.battle_turn == "player":
-                for i, button in enumerate(battle_buttons):
-                    button.check_hover(mouse_pos)
-                    if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
-                        result = None
-                        
-                        if button.text == "Quick Strike":
-                            result = game_state.player.attack(game_state.enemy, "Quick Strike")
-                        elif button.text == "Heavy Strike":
-                            result = game_state.player.attack(game_state.enemy, "Heavy Strike")
-                        elif button.text == "Rest":
-                            result = game_state.player.rest()
-                        
-                        if result:
-                            game_state.battle_log.append(result["message"])
-                            
-                            # Check if enemy is defeated
-                            if game_state.enemy.health <= 0:
-                                game_state.battle_log.append(f"{game_state.enemy.name} has been defeated!")
-                                game_state.player.gain_experience(game_state.enemy.exp_reward)
-                                game_state.player.gold += game_state.enemy.gold_reward
-                                game_state.battle_log.append(
-                                    f"You gained {game_state.enemy.exp_reward} experience "
-                                    f"and {game_state.enemy.gold_reward} gold!"
-                                )
-                                game_state.battles_won += 1
-                                game_state.battle_action_delay = 60  # Set delay before returning to arena menu
-                                game_state.change_state(GameState.STATE_ARENA_MENU)
-                            else:
-                                game_state.battle_turn = "enemy"
-                                game_state.battle_action_delay = 30  # Delay before enemy's turn
+                        for i, button in enumerate(battle_buttons):
+                                    button.check_hover(mouse_pos)
+                                    if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
+                                                result = None
+                                                
+                                                if button.text == "Quick Strike":
+                                                            result = game_state.player.attack(game_state.enemy, "Quick Strike")
+                                                elif button.text == "Heavy Strike":
+                                                            result = game_state.player.attack(game_state.enemy, "Heavy Strike")
+                                                elif button.text == "Rest":
+                                                            result = game_state.player.rest()
+                                                
+                                                if result:
+                                                            game_state.battle_log.append(result["message"])
+                                                            
+                                                            # Check if enemy is defeated
+                                                            if game_state.enemy.health <= 0:
+                                                                        game_state.battle_log.append(f"{game_state.enemy.name} has been defeated!")
+                                                                        game_state.player.gain_experience(game_state.enemy.exp_reward)
+                                                                        game_state.player.gold += game_state.enemy.gold_reward
+                                                                        game_state.battle_log.append(
+                                                                                    f"You gained {game_state.enemy.exp_reward} experience "
+                                                                                    f"and {game_state.enemy.gold_reward} gold!"
+                                                                        )
+                                                                        game_state.battles_won += 1
+                                                                        game_state.battle_action_delay = 60  # Set delay before returning to arena menu
+                                                                        game_state.change_state(GameState.STATE_ARENA_MENU)
+                                                            else:
+                                                                        game_state.battle_turn = "enemy"
+                                                                        game_state.battle_action_delay = 30  # Delay before enemy's turn
             
             # Enemy turn
             if game_state.battle_turn == "enemy" and game_state.battle_action_delay <= 0:
-                result = game_state.enemy.choose_action(game_state.player)
-                game_state.battle_log.append(result["message"])
-                
-                # Check if player is defeated
-                if game_state.player.health <= 0:
-                    game_state.battle_log.append(f"{game_state.player.name} has been defeated!")
-                    game_state.battle_action_delay = 60
-                    game_state.change_state(GameState.STATE_GAME_OVER)
-                else:
-                    game_state.battle_turn = "player"
+                        result = game_state.enemy.choose_action(game_state.player)
+                        game_state.battle_log.append(result["message"])
+                        
+                        # Check if player is defeated
+                        if game_state.player.health <= 0:
+                                    game_state.battle_log.append(f"{game_state.player.name} has been defeated!")
+                                    game_state.battle_action_delay = 60
+                                    game_state.change_state(GameState.STATE_GAME_OVER)
+                        else:
+                                    game_state.battle_turn = "player"
             
             # Update action delay
             if game_state.battle_action_delay > 0:
-                game_state.battle_action_delay -= 1
+                        game_state.battle_action_delay -= 1
             
-            # Draw battle screen
-            draw_battle_arena(screen, game_state.player, game_state.enemy, game_state.battle_log, fonts)
+            # Draw battle screen - UPDATED LINE:
+            draw_battle_arena(screen, game_state.player, game_state.enemy, game_state.battle_log, game_state.battle_turn, fonts)
+            
             # Only draw buttons during player's turn
             if game_state.battle_turn == "player":
-                for button in battle_buttons:
-                    button.draw(screen)
+                        for button in battle_buttons:
+                                    button.draw(screen)
                 
         # Character stats state
         elif game_state.current_state == GameState.STATE_CHARACTER_STATS:
@@ -261,7 +263,9 @@ def main():
             for button in game_over_buttons:
                 button.check_hover(mouse_pos)
                 if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
-                    if button.text == "New Game":
+                    if button.text == "Return to Main Menu":
+                        game_state.change_state(GameState.STATE_MAIN_MENU)
+                    elif button.text == "New Game":
                         game_state.change_state(GameState.STATE_CHARACTER_CREATION)
                         game_state.input_name = "Hero"
                         game_state.current_stats = {'strength': 0, 'speed': 0, 'armor': 0}
