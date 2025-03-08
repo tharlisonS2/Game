@@ -16,7 +16,89 @@ def draw_main_menu(surface, buttons, fonts):
     # Draw buttons
     for button in buttons:
         button.draw(surface)
-
+        
+def draw_pre_battle(surface, player, enemy, button, battle_timer, fonts):
+    """Draw the pre-battle screen showing character stats comparison"""
+    # Background
+    surface.fill((30, 30, 80))  # Darker blue for pre-battle tension
+    
+    # Title
+    title_text = fonts['title'].render("BATTLE PREPARATION", True, GOLD)
+    title_rect = title_text.get_rect(center=(WIDTH/2, 50))
+    surface.blit(title_text, title_rect)
+    
+    # Countdown timer
+    countdown = max(3 - battle_timer // 20, 0)  # 20 frames per second for countdown
+    if countdown > 0:
+        timer_text = fonts['title'].render(f"{countdown}", True, RED)
+        timer_rect = timer_text.get_rect(center=(WIDTH/2, HEIGHT - 100))
+        surface.blit(timer_text, timer_rect)
+    else:
+        ready_text = fonts['title'].render("FIGHT!", True, RED)
+        ready_rect = ready_text.get_rect(center=(WIDTH/2, HEIGHT - 100))
+        surface.blit(ready_text, ready_rect)
+    
+    # Player Stats (Left side)
+    player_title = fonts['large'].render(f"{player.name} (Level {player.level})", True, BLUE)
+    surface.blit(player_title, (100, 120))
+    
+    # Enemy Stats (Right side)
+    enemy_title = fonts['large'].render(f"{enemy.name} (Level {enemy.level})", True, RED)
+    enemy_title_rect = enemy_title.get_rect(topright=(WIDTH - 100, 120))
+    surface.blit(enemy_title, enemy_title_rect)
+    
+    # VS text in the middle
+    vs_text = fonts['title'].render("VS", True, GOLD)
+    vs_rect = vs_text.get_rect(center=(WIDTH/2, 120))
+    surface.blit(vs_text, vs_rect)
+    
+    # Draw stat comparisons
+    stats = [
+        ("Health", player.health, player.max_health, enemy.health, enemy.max_health),
+        ("Stamina", player.stamina, player.max_stamina, enemy.stamina, enemy.max_stamina),
+        ("Strength", player.strength, player.strength, enemy.strength, enemy.strength),
+        ("Speed", player.speed, player.speed, enemy.speed, enemy.speed),
+        ("Armor", player.armor, player.armor, enemy.armor, enemy.armor)
+    ]
+    
+    y_pos = 180
+    for stat_name, p_val, p_max, e_val, e_max in stats:
+        # Stat name in center
+        stat_text = fonts['medium'].render(stat_name, True, WHITE)
+        stat_rect = stat_text.get_rect(center=(WIDTH/2, y_pos))
+        surface.blit(stat_text, stat_rect)
+        
+        # Player stat (left)
+        if stat_name in ["Health", "Stamina"]:
+            p_text = fonts['medium'].render(f"{p_val}/{p_max}", True, WHITE)
+            draw_health_bar(surface, 100, y_pos + 25, 200, 15, p_val, p_max)
+        else:
+            p_text = fonts['medium'].render(f"{p_val}", True, WHITE)
+        p_rect = p_text.get_rect(topleft=(100, y_pos))
+        surface.blit(p_text, p_rect)
+        
+        # Enemy stat (right)
+        if stat_name in ["Health", "Stamina"]:
+            e_text = fonts['medium'].render(f"{e_val}/{e_max}", True, WHITE)
+            e_rect = e_text.get_rect(topright=(WIDTH - 100, y_pos))
+            surface.blit(e_text, e_rect)
+            draw_health_bar(surface, WIDTH - 300, y_pos + 25, 200, 15, e_val, e_max)
+        else:
+            e_text = fonts['medium'].render(f"{e_val}", True, WHITE)
+            e_rect = e_text.get_rect(topright=(WIDTH - 100, y_pos))
+            surface.blit(e_text, e_rect)
+        
+        y_pos += 60
+    
+    # Battle tips
+    tip_text = fonts['small'].render("Tip: Assess your opponent's strengths and weaknesses before planning your attack!", True, GOLD)
+    tip_rect = tip_text.get_rect(center=(WIDTH/2, HEIGHT - 150))
+    surface.blit(tip_text, tip_rect)
+    
+    # Skip button (if provided)
+    if button:
+        button.draw(surface)
+        
 def draw_character_creation(surface, buttons, game_state, fonts):
     """Draw the character creation screen with stat distribution"""
     # Background

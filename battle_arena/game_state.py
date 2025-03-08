@@ -6,6 +6,7 @@ class GameState:
     STATE_ARENA_MENU = 3
     STATE_CHARACTER_STATS = 4
     STATE_GAME_OVER = 5
+    STATE_PRE_BATTLE = 6  # New state for showing stats before battle
     
     def __init__(self):
         self.current_state = self.STATE_MAIN_MENU
@@ -15,6 +16,7 @@ class GameState:
         self.battle_turn = "player"
         self.battle_log = []
         self.battle_action_delay = 0
+        self.pre_battle_timer = 0  # Timer for pre-battle screen
         
         # Character creation variables
         self.input_name = "Hero"
