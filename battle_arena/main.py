@@ -68,7 +68,7 @@ def main():
     ]
     
     # Pre-battle screen skip button
-    pre_battle_button = Button(WIDTH/2 - 100, HEIGHT - 80, 200, 40, "Skip to Battle")
+    pre_battle_button = Button(WIDTH/2 - 100, HEIGHT - 80, 200, 40, "Start Battle!")
     
     # Battle buttons
     battle_buttons = [
@@ -197,14 +197,12 @@ def main():
             pre_battle_button.check_hover(mouse_pos)
             if mouse_clicked and pre_battle_button.is_clicked(mouse_pos, mouse_clicked):
                 game_state.change_state(GameState.STATE_BATTLE)
-                
-            # Increment timer
-            game_state.pre_battle_timer += 1
-            
-            # Auto-transition after countdown (about 3 seconds)
-            if game_state.pre_battle_timer >= 60:  # 60 frames = about 3 seconds at 60 FPS
-                game_state.change_state(GameState.STATE_BATTLE)
-            
+        
+            # Remove auto-transition timer code
+            # game_state.pre_battle_timer += 1
+            # if game_state.pre_battle_timer >= 60:  # 60 frames = about 3 seconds at 60 FPS
+            #        game_state.change_state(GameState.STATE_BATTLE)
+        
             # Draw pre-battle screen
             draw_pre_battle(screen, game_state.player, game_state.enemy, pre_battle_button, game_state.pre_battle_timer, fonts)
                 

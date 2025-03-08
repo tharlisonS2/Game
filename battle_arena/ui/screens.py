@@ -27,16 +27,10 @@ def draw_pre_battle(surface, player, enemy, button, battle_timer, fonts):
     title_rect = title_text.get_rect(center=(WIDTH/2, 50))
     surface.blit(title_text, title_rect)
     
-    # Countdown timer
-    countdown = max(3 - battle_timer // 20, 0)  # 20 frames per second for countdown
-    if countdown > 0:
-        timer_text = fonts['title'].render(f"{countdown}", True, RED)
-        timer_rect = timer_text.get_rect(center=(WIDTH/2, HEIGHT - 100))
-        surface.blit(timer_text, timer_rect)
-    else:
-        ready_text = fonts['title'].render("FIGHT!", True, RED)
-        ready_rect = ready_text.get_rect(center=(WIDTH/2, HEIGHT - 100))
-        surface.blit(ready_text, ready_rect)
+    # Remove countdown timer section and replace with instruction
+    instruction_text = fonts['medium'].render("Review stats and click 'Start Battle!' when ready", True, WHITE)
+    instruction_rect = instruction_text.get_rect(center=(WIDTH/2, HEIGHT - 120))
+    surface.blit(instruction_text, instruction_rect)
     
     # Player Stats (Left side)
     player_title = fonts['large'].render(f"{player.name} (Level {player.level})", True, BLUE)
@@ -95,7 +89,7 @@ def draw_pre_battle(surface, player, enemy, button, battle_timer, fonts):
     tip_rect = tip_text.get_rect(center=(WIDTH/2, HEIGHT - 150))
     surface.blit(tip_text, tip_rect)
     
-    # Skip button (if provided)
+    # Start Battle button (more prominent)
     if button:
         button.draw(surface)
         
