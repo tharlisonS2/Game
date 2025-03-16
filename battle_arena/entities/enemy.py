@@ -1,12 +1,12 @@
-# entities/enemy.py
+# battle_arena/entities/enemy.py
 import random
 from entities.character import Character
+from constants import WIDTH
 
 class Enemy(Character):
     def __init__(self, name, level):
-    # Create a stats dictionary for the Enemy
         enemy_stats = {'strength': 0, 'speed': 0, 'armor': 0}
-        super().__init__(name, enemy_stats)  # Pass stats dictionary to Character's init
+        super().__init__(name, enemy_stats)
         self.level = level
         self.max_health = 50 + (level * 10)
         self.health = self.max_health
@@ -25,55 +25,34 @@ class Enemy(Character):
         }
         self.max_stamina = 80
         self.stamina = self.max_stamina
-        
-        # Enemy position and color
-        self.position = (600, 300)
+        self.base_position = (600, 300)
+        self.position = list(self.base_position)
+        self.move_speed = 5
         self.color = (200, 50, 50)
-    
+
     def choose_action(self, player):
-        """Enemy AI to choose an action"""
-        if self.stamina < 15:  # If low on stamina
+        distance = abs(self.position[0] - player.position[0])
+        
+        if self.stamina < 15:
             return self.rest()
-            
-        # Choose attack based on health situation
-        if self.health < self.max_health * 0.3:  # Low health, go for high damage
+        
+        # Move toward player if too far to attack (updated to 100 to match attack range)
+        if distance > 100:  # Changed from 50 to 100
+            if self.position[0] > player.position[0]:
+                self.move_left()
+                return {"success": True, "message": f"{self.name} moves closer to {player.name}!"}
+            else:
+                self.move_right()
+                return {"success": True, "message": f"{self.name} moves closer to {player.name}!"}
+        
+        # Attack if close enough
+        if self.health < self.max_health * 0.3:
             if self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
                 return self.attack(player, "Fierce Attack")
-            else:
+            return self.attack(player, "Strike")
+        else:
+            if random.random() < 0.7:
                 return self.attack(player, "Strike")
-        else:  # Normal situation, randomize a bit
-            if random.random() < 0.7:  # 70% chance for normal attack
-                return self.attack(player, "Strike")
-            else:
-                if self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
-                    return self.attack(player, "Fierce Attack")
-                else:
-                    return self.attack(player, "Strike")
-
-
-def generate_enemy(player_level):
-    """Generate an appropriate enemy based on player level"""
-    enemy_types = [
-        "Goblin", "Bandit", "Wolf", "Skeleton", "Orc", 
-        "Troll", "Dark Knight", "Shadow Assassin", "Ogre"
-    ]
-    
-    # Choose enemy level based on player level
-    enemy_level = max(1, player_level - 1 + random.randint(-1, 2))
-    
-    # Choose appropriate enemy type based on level
-    if enemy_level <= 3:
-        enemy_pool = enemy_types[:4]
-    elif enemy_level <= 6:
-        enemy_pool = enemy_types[2:7]
-    else:
-        enemy_pool = enemy_types[5:]
-    
-    enemy_name = random.choice(enemy_pool)
-    
-    # Add suffix for higher level enemies
-    if enemy_level > 5:
-        suffixes = ["the Strong", "the Fierce", "the Deadly", "the Brutal"]
-        enemy_name += " " + random.choice(suffixes)
-    
-    return Enemy(enemy_name, enemy_level)
+            elif self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
+                return self.attack(player, "Fierce Attack")
+            return self.attack(player, "Strike")
