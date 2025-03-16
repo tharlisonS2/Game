@@ -1,4 +1,3 @@
-# battle_arena/entities/character.py
 import pygame
 import random
 from constants import RED, GREEN, BLUE, WHITE, BROWN, WIDTH
@@ -7,18 +6,22 @@ class Character:
     def __init__(self, name, stats=None):
         self.name = name
         self.level = 1
-        self.strength = 5
-        self.speed = 5
+        self.strength = 5  # Only affects damage
+        self.agility = 5
         self.armor = 5
+        self.stamina_stat = 5
+        self.vitality = 5  # New attribute for max_health
         
         if stats:
             self.strength += stats.get('strength', 0)
-            self.speed += stats.get('agility', 0)
+            self.agility += stats.get('agility', 0)
             self.armor += stats.get('defense', 0)
+            self.stamina_stat += stats.get('stamina', 0)
+            self.vitality += stats.get('vitality', 0)
         
-        self.max_health = 80 + (self.strength * 2)
+        self.max_health = 80 + (self.vitality * 10)
         self.health = self.max_health
-        self.max_stamina = 80 + (self.speed * 2)
+        self.max_stamina = 80 + (self.agility * 2) + (self.stamina_stat * 5)
         self.stamina = self.max_stamina
         
         self.gold = 50
@@ -39,13 +42,14 @@ class Character:
         self.hit_frame = 0
         self.base_position = (200, 300)
         self.position = list(self.base_position)
-        self.move_speed = 5
+        self.move_speed = 5 + self.agility * 2  # Increased agility impact on movement
+        self.move_stamina_cost = 5  # Base stamina cost for movement
         self.color = (50, 100, 200)
         self.font_small = pygame.font.SysFont('Arial', 18)
 
     def attack(self, enemy, skill_name):
         distance = abs(self.position[0] - enemy.position[0])
-        if distance > 100:  # Increased from 50 to 100 (already done)
+        if distance > 100:
             return {"success": False, "message": f"{self.name} is too far to attack {enemy.name}!"}
         
         skill = self.skills[skill_name]
@@ -56,7 +60,7 @@ class Character:
         self.is_attacking = True
         self.attack_frame = 0
         
-        hit_chance = skill["accuracy"] * (self.speed / (self.speed + enemy.speed))
+        hit_chance = skill["accuracy"] * (self.agility / (self.agility + enemy.agility))
         if random.random() <= hit_chance:
             weapon_damage = self.weapons[self.equipped_weapon]
             base_damage = self.strength + weapon_damage
@@ -81,7 +85,7 @@ class Character:
         }
 
     def rest(self):
-        recovery = max(5, self.max_stamina // 10)
+        recovery = max(5, self.max_stamina // 10) + self.stamina_stat
         self.stamina = min(self.max_stamina, self.stamina + recovery)
         return {"success": True, "message": f"{self.name} rests and recovers {recovery} stamina!"}
 
@@ -99,21 +103,58 @@ class Character:
         self.experience -= self.exp_to_level
         self.exp_to_level = int(self.exp_to_level * 1.5)
         self.strength += 2
-        self.speed += 1
+        self.agility += 1
         self.armor += 1
-        self.max_health = 80 + (self.strength * 2)
+        self.stamina_stat += 1
+        self.vitality += 1
+        self.max_health = 80 + (self.vitality * 10)
         self.health = self.max_health
-        self.max_stamina = 80 + (self.speed * 2)
+        self.max_stamina = 80 + (self.agility * 2) + (self.stamina_stat * 5)
         self.stamina = self.max_stamina
+        self.move_speed = 5 + self.agility * 2  # Update move_speed with new formula
         return f"{self.name} has reached level {self.level}! Attributes increased!"
 
-    def move_left(self):
-        if self.position[0] > 50:
-            self.position[0] -= self.move_speed
+    def move_left(self, enemy=None):
+        if self.stamina < self.move_stamina_cost:
+            return {"success": False, "message": f"{self.name} is too tired to move!"}
+        if self.position[0] <= 50:
+            return {"success": False, "message": f"{self.name} cannot move further left!"}
+        
+        self.stamina -= self.move_stamina_cost
+        new_position = self.position[0] - self.move_speed
+        
+        if enemy and self.position[0] > enemy.position[0]:
+            # Player is to the right of enemy, moving left toward them
+            min_position = enemy.position[0] + 100  # Ensure 100-unit distance when approaching
+            if new_position < min_position:
+                new_position = min_position
+                self.position[0] = new_position
+                return {"success": True, "message": f"{self.name} moves left and stops near {enemy.name}!"}
+        
+        # Allow retreating freely if already left of enemy or no restriction applies
+        self.position[0] = max(50, new_position)
+        return {"success": True, "message": f"{self.name} moves left!"}
 
-    def move_right(self):
-        if self.position[0] < WIDTH - 50:
-            self.position[0] += self.move_speed
+    def move_right(self, enemy=None):
+        if self.stamina < self.move_stamina_cost:
+            return {"success": False, "message": f"{self.name} is too tired to move!"}
+        if self.position[0] >= WIDTH - 50:
+            return {"success": False, "message": f"{self.name} cannot move further right!"}
+        
+        self.stamina -= self.move_stamina_cost
+        new_position = self.position[0] + self.move_speed
+        
+        if enemy and self.position[0] < enemy.position[0]:
+            # Player is to the left of enemy, moving right toward them
+            max_position = enemy.position[0] - 100  # Ensure 100-unit distance when approaching
+            if new_position > max_position:
+                new_position = max_position
+                self.position[0] = new_position
+                return {"success": True, "message": f"{self.name} moves right and stops near {enemy.name}!"}
+        
+        # Allow moving right freely if already right of enemy or no restriction applies
+        self.position[0] = min(WIDTH - 50, new_position)
+        return {"success": True, "message": f"{self.name} moves right!"}
 
     def update_animation(self):
         if self.is_attacking:

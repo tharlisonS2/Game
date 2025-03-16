@@ -6,7 +6,7 @@ class GameState:
     STATE_ARENA_MENU = 3
     STATE_CHARACTER_STATS = 4
     STATE_GAME_OVER = 5
-    STATE_PRE_BATTLE = 6  # New state for showing stats before battle
+    STATE_PRE_BATTLE = 6
     
     def __init__(self):
         self.current_state = self.STATE_MAIN_MENU
@@ -16,18 +16,19 @@ class GameState:
         self.battle_turn = "player"
         self.battle_log = []
         self.battle_action_delay = 0
-        self.pre_battle_timer = 0  # Timer for pre-battle screen
+        self.pre_battle_timer = 0
         
         # Character creation variables
         self.input_name = "Hero"
-        self.stat_points = 15  # Total points to distribute
+        self.stat_points = 20
         self.current_stats = {
-            'strength': 0, 
-            'agility': 0,  # Renamed from 'speed' for clarity
-            'defense': 0   # Renamed from 'armor' for clarity
+            'strength': 0,
+            'agility': 0,
+            'defense': 0,
+            'stamina': 0,
+            'vitality': 0  # Added vitality
         }
         
-        # Stat button detection rects
         self.stat_buttons = {}
     
     def change_state(self, new_state):
@@ -48,19 +49,16 @@ class GameState:
         self.battles_won += 1
         
     def get_remaining_points(self):
-        """Calculate remaining stat points"""
         used_points = sum(self.current_stats.values())
         return self.stat_points - used_points
     
     def increase_stat(self, stat_name):
-        """Increase a stat if points are available"""
         if self.get_remaining_points() > 0:
             self.current_stats[stat_name] += 1
             return True
         return False
     
     def decrease_stat(self, stat_name):
-        """Decrease a stat if it's above 0"""
         if self.current_stats[stat_name] > 0:
             self.current_stats[stat_name] -= 1
             return True

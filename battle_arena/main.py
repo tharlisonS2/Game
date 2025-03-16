@@ -1,4 +1,3 @@
-# battle_arena/main.py
 import pygame
 import sys
 from constants import *
@@ -41,8 +40,8 @@ def main():
     for stat in game_state.current_stats.keys():
         char_creation_buttons.append(Button(WIDTH/2 - 180, y_position, 30, 30, "-", color=RED))
         char_creation_buttons.append(Button(WIDTH/2 - 30, y_position, 30, 30, "+", color=GREEN))
-        y_position += 50
-    char_creation_buttons.append(Button(WIDTH/2 - 100, 400, 200, 50, "Create Character"))
+        y_position += 40
+    char_creation_buttons.append(Button(WIDTH/2 - 100, 440, 200, 50, "Create Character"))
     
     arena_buttons = [
         Button(WIDTH/2 - 100, 320, 200, 50, "Enter Battle"),
@@ -53,7 +52,6 @@ def main():
     
     pre_battle_button = Button(WIDTH/2 - 100, HEIGHT - 80, 200, 40, "Start Battle!")
     
-    # Updated battle buttons with better framing
     battle_buttons = [
         Button(80, 460, 120, 40, "Move Left", color=BLUE, hover_color=GRAY),
         Button(210, 460, 120, 40, "Move Right", color=BLUE, hover_color=GRAY),
@@ -99,7 +97,7 @@ def main():
                     if button.text == "New Game":
                         game_state.change_state(GameState.STATE_CHARACTER_CREATION)
                         game_state.input_name = "Hero"
-                        game_state.current_stats = {'strength': 0, 'speed': 0, 'armor': 0}
+                        game_state.current_stats = {'strength': 0, 'agility': 0, 'defense': 0, 'stamina': 0, 'vitality': 0}
                     elif button.text == "Exit":
                         running = False
             draw_main_menu(screen, main_menu_buttons, fonts)
@@ -146,9 +144,8 @@ def main():
         elif game_state.current_state == GameState.STATE_PRE_BATTLE:
             pre_battle_button.check_hover(mouse_pos)
             if mouse_clicked and pre_battle_button.is_clicked(mouse_pos, mouse_clicked):
-                # Reset player and enemy positions to initial values before starting battle
-                game_state.player.position = list(game_state.player.base_position)  # Reset to (200, 300)
-                game_state.enemy.position = list(game_state.enemy.base_position)    # Reset to (600, 300)
+                game_state.player.position = list(game_state.player.base_position)
+                game_state.enemy.position = list(game_state.enemy.base_position)
                 game_state.change_state(GameState.STATE_BATTLE)
             draw_pre_battle(screen, game_state.player, game_state.enemy, pre_battle_button, game_state.pre_battle_timer, fonts)
                 
@@ -156,39 +153,48 @@ def main():
             game_state.player.update_animation()
             game_state.enemy.update_animation()
             
-            # Calculate distance between player and enemy
             distance = abs(game_state.player.position[0] - game_state.enemy.position[0])
-            within_attack_range = distance <= 100  # Attack range is 100 pixels
+            within_attack_range = distance <= 100
             
             if game_state.battle_turn == "player":
-                # Update button states based on attack range
                 for button in battle_buttons:
-                    if button.text in ["Move Left", "Move Right"] and within_attack_range:
-                        button.color = GRAY  # Disable visually when within range
-                        button.hover_color = GRAY
+                    # Fix button activation logic
+                    if button.text == "Move Left":
+                        if game_state.player.stamina < game_state.player.move_stamina_cost or game_state.player.position[0] <= 50:
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        else:
+                            button.color = BLUE
+                            button.hover_color = GRAY
+                    elif button.text == "Move Right":
+                        if (within_attack_range or 
+                            game_state.player.stamina < game_state.player.move_stamina_cost or 
+                            game_state.player.position[0] >= WIDTH - 50):
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        else:
+                            button.color = BLUE
+                            button.hover_color = GRAY
                     else:
-                        button.color = BLUE  # Restore normal color
+                        button.color = BLUE
                         button.hover_color = GRAY
                     
                     button.check_hover(mouse_pos)
                     if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
                         result = None
                         if button.text == "Move Left":
-                            if not within_attack_range:  # Only allow move if out of range
-                                game_state.player.move_left()
-                                game_state.battle_log.append(f"{game_state.player.name} moves left!")
+                            result = game_state.player.move_left(game_state.enemy)
+                            if result["success"]:
                                 game_state.battle_turn = "enemy"
                                 game_state.battle_action_delay = 30
-                            else:
-                                game_state.battle_log.append(f"{game_state.player.name} cannot move closer, within attack range!")
                         elif button.text == "Move Right":
-                            if not within_attack_range:  # Only allow move if out of range
-                                game_state.player.move_right()
-                                game_state.battle_log.append(f"{game_state.player.name} moves right!")
-                                game_state.battle_turn = "enemy"
-                                game_state.battle_action_delay = 30
+                            if not within_attack_range:
+                                result = game_state.player.move_right(game_state.enemy)
+                                if result["success"]:
+                                    game_state.battle_turn = "enemy"
+                                    game_state.battle_action_delay = 30
                             else:
-                                game_state.battle_log.append(f"{game_state.player.name} cannot move closer, within attack range!")
+                                result = {"success": False, "message": f"{game_state.player.name} can only retreat left when in range!"}
                         elif button.text == "Quick Strike":
                             result = game_state.player.attack(game_state.enemy, "Quick Strike")
                         elif button.text == "Heavy Strike":
@@ -212,6 +218,11 @@ def main():
             
             if game_state.battle_turn == "enemy" and game_state.battle_action_delay <= 0:
                 result = game_state.enemy.choose_action(game_state.player)
+                # Update enemy movement to account for collision with player
+                if "moves left" in result["message"]:
+                    result = game_state.enemy.move_left(game_state.player)
+                elif "moves right" in result["message"]:
+                    result = game_state.enemy.move_right(game_state.player)
                 game_state.battle_log.append(result["message"])
                 if game_state.player.health <= 0:
                     game_state.battle_log.append(f"{game_state.player.name} has been defeated!")
@@ -243,7 +254,7 @@ def main():
                     elif button.text == "New Game":
                         game_state.change_state(GameState.STATE_CHARACTER_CREATION)
                         game_state.input_name = "Hero"
-                        game_state.current_stats = {'strength': 0, 'speed': 0, 'armor': 0}
+                        game_state.current_stats = {'strength': 0, 'agility': 0, 'defense': 0, 'stamina': 0, 'vitality': 0}
                     elif button.text == "Exit":
                         running = False
             draw_game_over(screen, game_state.player, game_state.battles_won, game_over_buttons, fonts)
