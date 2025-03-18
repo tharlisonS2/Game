@@ -1,0 +1,1148 @@
+# Root directory: battle_arena
+# ================================================================================
+
+# battle_arena/constants.py
+# Screen dimensions
+WIDTH, HEIGHT = 800, 600
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 120, 255)
+GRAY = (150, 150, 150)
+GOLD = (255, 215, 0)
+BROWN = (139, 69, 19)
+
+# Fonts and initialization
+import pygame
+pygame.font.init()
+font_small = pygame.font.SysFont('Arial', 18)
+font_medium = pygame.font.SysFont('Arial', 24)
+font_large = pygame.font.SysFont('Arial', 32)
+font_title = pygame.font.SysFont('Arial', 48, bold=True)
+
+# Character classes
+WARRIOR = "Warrior"
+ROGUE = "Rogue"
+KNIGHT = "Knight"
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/entities/__init__.py
+from .character import Character
+from .enemy import Enemy
+from .utils import generate_enemy
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/entities/character.py
+import pygame
+import random
+from constants import RED, GREEN, BLUE, WHITE, BROWN, WIDTH
+
+class Character:
+    def __init__(self, name, stats=None):
+        self.name = name
+        self.level = 1
+        self.strength = 5  # Only affects damage
+        self.agility = 5
+        self.armor = 5
+        self.stamina_stat = 5
+        self.vitality = 5  # New attribute for max_health
+        
+        if stats:
+            self.strength += stats.get('strength', 0)
+            self.agility += stats.get('agility', 0)
+            self.armor += stats.get('defense', 0)
+            self.stamina_stat += stats.get('stamina', 0)
+            self.vitality += stats.get('vitality', 0)
+        
+        self.max_health = 80 + (self.vitality * 10)
+        self.health = self.max_health
+        self.max_stamina = 80 + (self.agility * 2) + (self.stamina_stat * 5)
+        self.stamina = self.max_stamina
+        
+        self.gold = 50
+        self.experience = 0
+        self.exp_to_level = 100
+        self.weapons = {"Rusty Sword": 5}
+        self.equipped_weapon = "Rusty Sword"
+        self.armor_items = {"Cloth Tunic": 2}
+        self.equipped_armor = "Cloth Tunic"
+        self.skills = {
+            "Quick Strike": {"damage": 0.8, "accuracy": 0.9, "stamina_cost": 10},
+            "Heavy Strike": {"damage": 1.5, "accuracy": 0.7, "stamina_cost": 20},
+            "Leap Attack": {"damage": 1.8, "accuracy": 0.65, "stamina_cost": 30}  # Removed leap_distance
+        }
+        
+        self.is_attacking = False
+        self.attack_frame = 0
+        self.is_hit = False
+        self.hit_frame = 0
+        self.base_position = (200, 300)
+        self.position = list(self.base_position)
+        self.move_speed = 5 + self.agility * 2  # Increased agility impact on movement
+        self.move_stamina_cost = 5  # Base stamina cost for movement
+        self.color = (50, 100, 200)
+        self.font_small = pygame.font.SysFont('Arial', 18)
+
+    def attack(self, enemy, skill_name):
+        distance = abs(self.position[0] - enemy.position[0])
+        skill = self.skills[skill_name]
+        
+        # Special handling for Leap Attack
+        if skill_name == "Leap Attack":
+            if distance <= 100:
+                return {"success": False, "message": f"{self.name} is already too close for Leap Attack!"}
+            if self.stamina < skill["stamina_cost"]:
+                return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
+            
+            # Leap toward the enemy with agility-based scaling
+            self.stamina -= skill["stamina_cost"]
+            leap_distance = 100 + (self.agility * 5)  # Base 100 + 5 per agility point
+            if self.position[0] < enemy.position[0]:
+                # Leap right toward enemy
+                new_position = min(self.position[0] + leap_distance, enemy.position[0] - 100)
+                self.position[0] = min(new_position, WIDTH - 50)
+            else:
+                # Leap left toward enemy (fix for enemies at 600)
+                new_position = max(self.position[0] - leap_distance, enemy.position[0] + 100)
+                self.position[0] = max(50, new_position)
+        else:
+            # Normal attack range check
+            if distance > 100:
+                return {"success": False, "message": f"{self.name} is too far to attack {enemy.name}!"}
+            if self.stamina < skill["stamina_cost"]:
+                return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
+            self.stamina -= skill["stamina_cost"]
+        
+        self.is_attacking = True
+        self.attack_frame = 0
+        
+        hit_chance = skill["accuracy"] * (self.agility / (self.agility + enemy.agility))
+        if random.random() <= hit_chance:
+            weapon_damage = self.weapons[self.equipped_weapon]
+            base_damage = self.strength + weapon_damage
+            skill_modifier = skill["damage"]
+            damage = int(base_damage * skill_modifier)
+            armor_value = enemy.armor_items[enemy.equipped_armor]
+            damage_reduced = max(1, damage - armor_value - (enemy.armor // 2))
+            enemy.health = max(0, enemy.health - damage_reduced)
+            enemy.is_hit = True
+            enemy.hit_frame = 0
+            message = (f"{self.name} leaps and hits {enemy.name} for {damage_reduced} damage!" 
+                      if skill_name == "Leap Attack" 
+                      else f"{self.name} hits {enemy.name} with {skill_name} for {damage_reduced} damage!")
+            return {
+                "success": True, 
+                "hit": True, 
+                "damage": damage_reduced,
+                "message": message
+            }
+        message = (f"{self.name}'s Leap Attack missed {enemy.name}!" 
+                  if skill_name == "Leap Attack" 
+                  else f"{self.name}'s {skill_name} missed {enemy.name}!")
+        return {
+            "success": True, 
+            "hit": False, 
+            "damage": 0,
+            "message": message
+        }
+
+    def rest(self):
+        recovery = max(5, self.max_stamina // 10) + self.stamina_stat
+        self.stamina = min(self.max_stamina, self.stamina + recovery)
+        return {"success": True, "message": f"{self.name} rests and recovers {recovery} stamina!"}
+
+    def gain_experience(self, amount):
+        self.experience += amount
+        result = {"message": f"{self.name} gained {amount} experience!"}
+        if self.experience >= self.exp_to_level:
+            levelup_msg = self.level_up()
+            result["message"] += " " + levelup_msg
+            result["levelup"] = True
+        return result
+
+    def level_up(self):
+        self.level += 1
+        self.experience -= self.exp_to_level
+        self.exp_to_level = int(self.exp_to_level * 1.5)
+        self.strength += 2
+        self.agility += 1
+        self.armor += 1
+        self.stamina_stat += 1
+        self.vitality += 1
+        self.max_health = 80 + (self.vitality * 10)
+        self.health = self.max_health
+        self.max_stamina = 80 + (self.agility * 2) + (self.stamina_stat * 5)
+        self.stamina = self.max_stamina
+        self.move_speed = 5 + self.agility * 2  # Update move_speed with new formula
+        return f"{self.name} has reached level {self.level}! Attributes increased!"
+
+    def move_left(self, enemy=None):
+        if self.stamina < self.move_stamina_cost:
+            return {"success": False, "message": f"{self.name} is too tired to move!"}
+        if self.position[0] <= 50:
+            return {"success": False, "message": f"{self.name} cannot move further left!"}
+        
+        self.stamina -= self.move_stamina_cost
+        new_position = self.position[0] - self.move_speed
+        
+        if enemy and self.position[0] > enemy.position[0]:
+            min_position = enemy.position[0] + 100
+            if new_position < min_position:
+                new_position = min_position
+                self.position[0] = new_position
+                return {"success": True, "message": f"{self.name} moves left and stops near {enemy.name}!"}
+        
+        self.position[0] = max(50, new_position)
+        return {"success": True, "message": f"{self.name} moves left!"}
+
+    def move_right(self, enemy=None):
+        if self.stamina < self.move_stamina_cost:
+            return {"success": False, "message": f"{self.name} is too tired to move!"}
+        if self.position[0] >= WIDTH - 50:
+            return {"success": False, "message": f"{self.name} cannot move further right!"}
+        
+        self.stamina -= self.move_stamina_cost
+        new_position = self.position[0] + self.move_speed
+        
+        if enemy and self.position[0] < enemy.position[0]:
+            max_position = enemy.position[0] - 100
+            if new_position > max_position:
+                new_position = max_position
+                self.position[0] = new_position
+                return {"success": True, "message": f"{self.name} moves right and stops near {enemy.name}!"}
+        
+        self.position[0] = min(WIDTH - 50, new_position)
+        return {"success": True, "message": f"{self.name} moves right!"}
+
+    def update_animation(self):
+        if self.is_attacking:
+            self.attack_frame += 1
+            if self.attack_frame > 10:
+                self.is_attacking = False
+                self.attack_frame = 0
+        if self.is_hit:
+            self.hit_frame += 1
+            if self.hit_frame > 10:
+                self.is_hit = False
+                self.hit_frame = 0
+
+    def draw(self, surface):
+        color = self.color if not self.is_hit else (RED if self.hit_frame % 2 == 0 else self.color)
+        position = list(self.position)
+        if self.is_attacking:
+            if self.attack_frame < 5:
+                position[0] += self.attack_frame * 5
+            else:
+                position[0] -= (self.attack_frame - 5) * 5
+        
+        pygame.draw.circle(surface, color, (int(position[0]), int(position[1])), 30)
+        pygame.draw.rect(surface, color, (int(position[0]) - 20, int(position[1]) + 30, 40, 60))
+        if self.is_attacking:
+            pygame.draw.rect(surface, BROWN, (int(position[0]) + 20, int(position[1]) - 10, 40, 10))
+        
+        health_width = 60
+        health_percent = self.health / self.max_health
+        pygame.draw.rect(surface, RED, (int(position[0]) - 30, int(position[1]) - 50, health_width, 10))
+        pygame.draw.rect(surface, GREEN, (int(position[0]) - 30, int(position[1]) - 50, int(health_width * health_percent), 10))
+        
+        stamina_width = 60
+        stamina_percent = self.stamina / self.max_stamina
+        pygame.draw.rect(surface, (150, 150, 150), (int(position[0]) - 30, int(position[1]) - 38, stamina_width, 6))
+        pygame.draw.rect(surface, BLUE, (int(position[0]) - 30, int(position[1]) - 38, int(stamina_width * stamina_percent), 6))
+        
+        name_text = self.font_small.render(self.name, True, WHITE)
+        name_rect = name_text.get_rect(center=(int(position[0]), int(position[1]) - 60))
+        surface.blit(name_text, name_rect)
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/entities/enemy.py
+import random
+from entities.character import Character
+from constants import WIDTH
+
+class Enemy(Character):
+    def __init__(self, name, level):
+        enemy_stats = {'strength': 0, 'agility': 0, 'armor': 0, 'stamina': 0, 'vitality': 0}
+        super().__init__(name, enemy_stats)
+        self.level = level
+        self.max_health = 50 + (level * 10)
+        self.health = self.max_health
+        self.strength = 5 + (level * 2)
+        self.agility = 5 + level
+        self.armor = 2 + level
+        self.stamina_stat = 5 + level
+        self.vitality = 5 + level
+        self.equipped_weapon = "Claws"
+        self.weapons = {self.equipped_weapon: 3 + level}
+        self.equipped_armor = "Tough Skin"
+        self.armor_items = {self.equipped_armor: 1 + (level // 2)}
+        self.gold_reward = 10 + (level * 5)
+        self.exp_reward = 20 + (level * 10)
+        self.skills = {
+            "Strike": {"damage": 1.0, "accuracy": 0.8, "stamina_cost": 10},
+            "Fierce Attack": {"damage": 1.3, "accuracy": 0.6, "stamina_cost": 15},
+            "Leap Attack": {"damage": 1.8, "accuracy": 0.65, "stamina_cost": 30}
+        }
+        self.max_health = 80 + (self.vitality * 10)
+        self.health = self.max_health
+        self.max_stamina = 80 + (self.agility * 2) + (self.stamina_stat * 5)
+        self.stamina = self.max_stamina
+        self.base_position = (600, 300)
+        self.position = list(self.base_position)
+        self.move_speed = 5 + self.agility * 2
+        self.move_stamina_cost = 5
+        self.color = (200, 50, 50)
+
+    def choose_action(self, player):
+        distance = abs(self.position[0] - player.position[0])
+        
+        # If stamina is too low, rest
+        if self.stamina < self.skills["Strike"]["stamina_cost"]:
+            return self.rest()
+        
+        # Out of attack range
+        if distance > 100:
+            # Prioritize Leap Attack when positioned correctly and stamina allows
+            if (self.stamina >= self.skills["Leap Attack"]["stamina_cost"] and 
+                self.position[0] > player.position[0] and 
+                random.random() < 0.7):  # Increased probability to 70%
+                return self.attack(player, "Leap Attack")
+            # Move toward player otherwise
+            elif self.position[0] > player.position[0]:
+                return self.move_left(player)
+            else:
+                return self.move_right(player)
+        
+        # Within attack range
+        if self.health < self.max_health * 0.3:  # Low health: prioritize stronger attacks
+            if self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
+                return self.attack(player, "Fierce Attack")
+            return self.attack(player, "Strike")
+        else:  # Normal health: mix of attacks
+            roll = random.random()
+            if roll < 0.4:
+                return self.attack(player, "Strike")
+            elif roll < 0.7 and self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
+                return self.attack(player, "Fierce Attack")
+            elif self.stamina >= self.skills["Leap Attack"]["stamina_cost"]:
+                return self.attack(player, "Leap Attack")  # Use Leap Attack even in range for variety
+            return self.attack(player, "Strike")
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/entities/utils.py
+import random
+from .enemy import Enemy
+
+def generate_enemy(player_level):
+    """Generate an appropriate enemy based on player level"""
+    enemy_types = [
+        "Goblin", "Bandit", "Wolf", "Skeleton", "Orc", 
+        "Troll", "Dark Knight", "Shadow Assassin", "Ogre"
+    ]
+    
+    # Choose enemy level based on player level
+    enemy_level = max(1, player_level - 1 + random.randint(-1, 2))
+    
+    # Choose appropriate enemy type based on level
+    if enemy_level <= 3:
+        enemy_pool = enemy_types[:4]
+    elif enemy_level <= 6:
+        enemy_pool = enemy_types[2:7]
+    else:
+        enemy_pool = enemy_types[5:]
+    
+    enemy_name = random.choice(enemy_pool)
+    
+    # Add suffix for higher level enemies
+    if enemy_level > 5:
+        suffixes = ["the Strong", "the Fierce", "the Deadly", "the Brutal"]
+        enemy_name += " " + random.choice(suffixes)
+    
+    return Enemy(enemy_name, enemy_level)
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/game_state.py
+class GameState:
+    # Game state constants
+    STATE_MAIN_MENU = 0
+    STATE_CHARACTER_CREATION = 1
+    STATE_BATTLE = 2
+    STATE_ARENA_MENU = 3
+    STATE_CHARACTER_STATS = 4
+    STATE_GAME_OVER = 5
+    STATE_PRE_BATTLE = 6
+    
+    def __init__(self):
+        self.current_state = self.STATE_MAIN_MENU
+        self.player = None
+        self.enemy = None
+        self.battles_won = 0
+        self.battle_turn = "player"
+        self.battle_log = []
+        self.battle_action_delay = 0
+        self.pre_battle_timer = 0
+        
+        # Character creation variables
+        self.input_name = "Hero"
+        self.stat_points = 20
+        self.current_stats = {
+            'strength': 0,
+            'agility': 0,
+            'defense': 0,
+            'stamina': 0,
+            'vitality': 0  # Added vitality
+        }
+        
+        self.stat_buttons = {}
+    
+    def change_state(self, new_state):
+        self.current_state = new_state
+        
+    def reset_battle(self):
+        self.battle_turn = "player"
+        self.battle_log = []
+        self.battle_action_delay = 0
+    
+    def add_battle_log(self, message):
+        self.battle_log.append(message)
+    
+    def clear_battle_log(self):
+        self.battle_log = []
+    
+    def increment_battles_won(self):
+        self.battles_won += 1
+        
+    def get_remaining_points(self):
+        used_points = sum(self.current_stats.values())
+        return self.stat_points - used_points
+    
+    def increase_stat(self, stat_name):
+        if self.get_remaining_points() > 0:
+            self.current_stats[stat_name] += 1
+            return True
+        return False
+    
+    def decrease_stat(self, stat_name):
+        if self.current_stats[stat_name] > 0:
+            self.current_stats[stat_name] -= 1
+            return True
+        return False
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/main.py
+import pygame
+import sys
+from constants import *
+from game_state import GameState
+from entities import Character, Enemy, generate_enemy
+from ui import (
+    Button, 
+    draw_health_bar,
+    draw_main_menu,
+    draw_character_creation,
+    draw_arena_menu,
+    draw_battle_arena,
+    draw_character_stats,
+    draw_game_over,
+    draw_pre_battle
+)
+
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Battle Arena")
+    clock = pygame.time.Clock()
+    
+    fonts = {
+        'small': pygame.font.SysFont('Arial', 18),
+        'medium': pygame.font.SysFont('Arial', 24),
+        'large': pygame.font.SysFont('Arial', 32),
+        'title': pygame.font.SysFont('Arial', 48, bold=True)
+    }
+    
+    game_state = GameState()
+    
+    main_menu_buttons = [
+        Button(WIDTH/2 - 100, 250, 200, 50, "New Game"),
+        Button(WIDTH/2 - 100, 320, 200, 50, "Exit")
+    ]
+    
+    char_creation_buttons = []
+    y_position = 240
+    for stat in game_state.current_stats.keys():
+        char_creation_buttons.append(Button(WIDTH/2 - 180, y_position, 30, 30, "-", color=RED))
+        char_creation_buttons.append(Button(WIDTH/2 - 30, y_position, 30, 30, "+", color=GREEN))
+        y_position += 40
+    char_creation_buttons.append(Button(WIDTH/2 - 100, 440, 200, 50, "Create Character"))
+    
+    arena_buttons = [
+        Button(WIDTH/2 - 100, 320, 200, 50, "Enter Battle"),
+        Button(WIDTH/2 - 100, 380, 200, 50, "View Stats"),
+        Button(WIDTH/2 - 100, 440, 200, 50, "Rest (Heal)"),
+        Button(WIDTH/2 - 100, 500, 200, 50, "Exit Game")
+    ]
+    
+    pre_battle_button = Button(WIDTH/2 - 100, HEIGHT - 80, 200, 40, "Start Battle!")
+    
+    battle_buttons = [
+        Button(50, 460, 100, 40, "Move Left", color=BLUE, hover_color=GRAY),
+        Button(160, 460, 100, 40, "Move Right", color=BLUE, hover_color=GRAY),
+        Button(270, 460, 100, 40, "Quick Strike"),
+        Button(380, 460, 100, 40, "Heavy Strike"),
+        Button(490, 460, 100, 40, "Leap Attack"),  # New button
+        Button(600, 460, 100, 40, "Rest")
+    ]
+    
+    stats_back_button = Button(WIDTH/2 - 100, 550, 200, 40, "Back")
+    
+    game_over_buttons = [
+        Button(WIDTH/2 - 100, 330, 200, 50, "Return to Main Menu"),
+        Button(WIDTH/2 - 100, 400, 200, 50, "New Game"),
+        Button(WIDTH/2 - 100, 470, 200, 50, "Exit")
+    ]
+    
+    running = True
+    while running:
+        mouse_pos = pygame.mouse.get_pos()
+        mouse_clicked = False
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    mouse_clicked = True
+            if event.type == pygame.KEYDOWN:
+                if game_state.current_state == GameState.STATE_CHARACTER_CREATION:
+                    if event.key == pygame.K_BACKSPACE:
+                        game_state.input_name = game_state.input_name[:-1]
+                    elif event.key == pygame.K_RETURN:
+                        if game_state.get_remaining_points() == 0 and game_state.input_name:
+                            game_state.player = Character(game_state.input_name, game_state.current_stats)
+                            game_state.change_state(GameState.STATE_ARENA_MENU)
+                    elif len(game_state.input_name) < 15 and event.unicode.isprintable():
+                        game_state.input_name += event.unicode
+        
+        if game_state.current_state == GameState.STATE_MAIN_MENU:
+            for button in main_menu_buttons:
+                button.check_hover(mouse_pos)
+                if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
+                    if button.text == "New Game":
+                        game_state.change_state(GameState.STATE_CHARACTER_CREATION)
+                        game_state.input_name = "Hero"
+                        game_state.current_stats = {'strength': 0, 'agility': 0, 'defense': 0, 'stamina': 0, 'vitality': 0}
+                    elif button.text == "Exit":
+                        running = False
+            draw_main_menu(screen, main_menu_buttons, fonts)
+                
+        elif game_state.current_state == GameState.STATE_CHARACTER_CREATION:
+            for i, button in enumerate(char_creation_buttons):
+                button.check_hover(mouse_pos)
+                if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
+                    if i < len(char_creation_buttons) - 1:
+                        stat_index = i // 2
+                        stat_key = list(game_state.current_stats.keys())[stat_index]
+                        if i % 2 == 0 and game_state.current_stats[stat_key] > 0:
+                            game_state.current_stats[stat_key] -= 1
+                        elif i % 2 == 1 and game_state.get_remaining_points() > 0:
+                            game_state.current_stats[stat_key] += 1
+                    elif button.text == "Create Character" and game_state.get_remaining_points() == 0 and game_state.input_name:
+                        game_state.player = Character(game_state.input_name, game_state.current_stats)
+                        game_state.change_state(GameState.STATE_ARENA_MENU)
+                        game_state.battles_won = 0
+            draw_character_creation(screen, char_creation_buttons, game_state, fonts)
+                
+        elif game_state.current_state == GameState.STATE_ARENA_MENU:
+            for button in arena_buttons:
+                button.check_hover(mouse_pos)
+                if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
+                    if button.text == "Enter Battle":
+                        game_state.enemy = generate_enemy(game_state.player.level)
+                        game_state.battle_log = [f"A {game_state.enemy.name} (Level {game_state.enemy.level}) appears!"]
+                        game_state.battle_turn = "player"
+                        game_state.battle_action_delay = 0
+                        game_state.pre_battle_timer = 0
+                        game_state.change_state(GameState.STATE_PRE_BATTLE)
+                    elif button.text == "View Stats":
+                        game_state.change_state(GameState.STATE_CHARACTER_STATS)
+                    elif button.text == "Rest (Heal)":
+                        health_restored = min(game_state.player.max_health - game_state.player.health, game_state.player.max_health // 2)
+                        game_state.player.health += health_restored
+                        game_state.player.stamina = game_state.player.max_stamina
+                        game_state.battle_log = [f"{game_state.player.name} recovers {health_restored} health and full stamina!"]
+                    elif button.text == "Exit Game":
+                        game_state.change_state(GameState.STATE_GAME_OVER)
+            draw_arena_menu(screen, game_state.player, arena_buttons, game_state.battles_won, fonts)
+                
+        elif game_state.current_state == GameState.STATE_PRE_BATTLE:
+            pre_battle_button.check_hover(mouse_pos)
+            if mouse_clicked and pre_battle_button.is_clicked(mouse_pos, mouse_clicked):
+                game_state.player.position = list(game_state.player.base_position)
+                game_state.enemy.position = list(game_state.enemy.base_position)
+                game_state.change_state(GameState.STATE_BATTLE)
+            draw_pre_battle(screen, game_state.player, game_state.enemy, pre_battle_button, game_state.pre_battle_timer, fonts)
+                
+        elif game_state.current_state == GameState.STATE_BATTLE:
+            game_state.player.update_animation()
+            game_state.enemy.update_animation()
+            
+            distance = abs(game_state.player.position[0] - game_state.enemy.position[0])
+            within_attack_range = distance <= 100
+            
+            if game_state.battle_turn == "player":
+                for button in battle_buttons:
+                    if button.text == "Move Left":
+                        if game_state.player.stamina < game_state.player.move_stamina_cost or game_state.player.position[0] <= 50:
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        else:
+                            button.color = BLUE
+                            button.hover_color = GRAY
+                    elif button.text == "Move Right":
+                        if (within_attack_range or 
+                            game_state.player.stamina < game_state.player.move_stamina_cost or 
+                            game_state.player.position[0] >= WIDTH - 50):
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        else:
+                            button.color = BLUE
+                            button.hover_color = GRAY
+                    elif button.text == "Leap Attack":
+                        if (within_attack_range or 
+                            game_state.player.stamina < game_state.player.skills["Leap Attack"]["stamina_cost"] or 
+                            game_state.player.position[0] >= game_state.enemy.position[0]):  # Fixed: Use game_state.enemy
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        else:
+                            button.color = BLUE
+                            button.hover_color = GRAY
+                    else:
+                        button.color = BLUE
+                        button.hover_color = GRAY
+                    
+                    button.check_hover(mouse_pos)
+                    if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
+                        result = None
+                        if button.text == "Move Left":
+                            result = game_state.player.move_left(game_state.enemy)
+                            if result["success"]:
+                                game_state.battle_turn = "enemy"
+                                game_state.battle_action_delay = 30
+                        elif button.text == "Move Right":
+                            if not within_attack_range:
+                                result = game_state.player.move_right(game_state.enemy)
+                                if result["success"]:
+                                    game_state.battle_turn = "enemy"
+                                    game_state.battle_action_delay = 30
+                            else:
+                                result = {"success": False, "message": f"{game_state.player.name} can only retreat left when in range!"}
+                        elif button.text == "Quick Strike":
+                            result = game_state.player.attack(game_state.enemy, "Quick Strike")
+                        elif button.text == "Heavy Strike":
+                            result = game_state.player.attack(game_state.enemy, "Heavy Strike")
+                        elif button.text == "Leap Attack":
+                            result = game_state.player.attack(game_state.enemy, "Leap Attack")
+                        elif button.text == "Rest":
+                            result = game_state.player.rest()
+                        
+                        if result:
+                            game_state.battle_log.append(result["message"])
+                            if game_state.enemy.health <= 0:
+                                game_state.battle_log.append(f"{game_state.enemy.name} has been defeated!")
+                                game_state.player.gain_experience(game_state.enemy.exp_reward)
+                                game_state.player.gold += game_state.enemy.gold_reward
+                                game_state.battle_log.append(f"You gained {game_state.enemy.exp_reward} exp and {game_state.enemy.gold_reward} gold!")
+                                game_state.battles_won += 1
+                                game_state.battle_action_delay = 60
+                                game_state.change_state(GameState.STATE_ARENA_MENU)
+                            elif result.get("success", False):
+                                game_state.battle_turn = "enemy"
+                                game_state.battle_action_delay = 30
+            
+            if game_state.battle_turn == "enemy" and game_state.battle_action_delay <= 0:
+                result = game_state.enemy.choose_action(game_state.player)
+                if "moves left" in result["message"]:
+                    result = game_state.enemy.move_left(game_state.player)
+                elif "moves right" in result["message"]:
+                    result = game_state.enemy.move_right(game_state.player)
+                game_state.battle_log.append(result["message"])
+                if game_state.player.health <= 0:
+                    game_state.battle_log.append(f"{game_state.player.name} has been defeated!")
+                    game_state.battle_action_delay = 60
+                    game_state.change_state(GameState.STATE_GAME_OVER)
+                elif result.get("success", False):
+                    game_state.battle_turn = "player"
+            
+            if game_state.battle_action_delay > 0:
+                game_state.battle_action_delay -= 1
+            
+            draw_battle_arena(screen, game_state.player, game_state.enemy, game_state.battle_log, game_state.battle_turn, fonts)
+            if game_state.battle_turn == "player":
+                for button in battle_buttons:
+                    button.draw(screen)
+                
+        elif game_state.current_state == GameState.STATE_CHARACTER_STATS:
+            stats_back_button.check_hover(mouse_pos)
+            if mouse_clicked and stats_back_button.is_clicked(mouse_pos, mouse_clicked):
+                game_state.change_state(GameState.STATE_ARENA_MENU)
+            draw_character_stats(screen, game_state.player, stats_back_button, fonts)
+            
+        elif game_state.current_state == GameState.STATE_GAME_OVER:
+            for button in game_over_buttons:
+                button.check_hover(mouse_pos)
+                if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
+                    if button.text == "Return to Main Menu":
+                        game_state.change_state(GameState.STATE_MAIN_MENU)
+                    elif button.text == "New Game":
+                        game_state.change_state(GameState.STATE_CHARACTER_CREATION)
+                        game_state.input_name = "Hero"
+                        game_state.current_stats = {'strength': 0, 'agility': 0, 'defense': 0, 'stamina': 0, 'vitality': 0}
+                    elif button.text == "Exit":
+                        running = False
+            draw_game_over(screen, game_state.player, game_state.battles_won, game_over_buttons, fonts)
+        
+        pygame.display.flip()
+        clock.tick(60)
+    
+    pygame.quit()
+    sys.exit()
+
+if __name__ == "__main__":
+    main()
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/ui/__init__.py
+from .button import Button
+from .drawing import draw_health_bar, draw_battle_arena
+from .screens import (
+    draw_main_menu,
+    draw_character_creation,
+    draw_arena_menu,
+    draw_character_stats,
+    draw_game_over,
+    draw_pre_battle  # Add the new pre-battle screen function
+)
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/ui/button.py
+import pygame
+from constants import BLACK, WHITE, BLUE, GRAY
+
+class Button:
+    def __init__(self, x, y, width, height, text, color=BLUE, hover_color=GRAY):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.color = color
+        self.hover_color = hover_color
+        self.is_hovered = False
+        self.font = pygame.font.SysFont('Arial', 24)
+        
+    def draw(self, surface):
+        color = self.hover_color if self.is_hovered else self.color
+        pygame.draw.rect(surface, color, self.rect)
+        pygame.draw.rect(surface, BLACK, self.rect, 2)  # Border
+        
+        text_surface = self.font.render(self.text, True, WHITE)
+        text_rect = text_surface.get_rect(center=self.rect.center)
+        surface.blit(text_surface, text_rect)
+        
+    def check_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+        
+    def is_clicked(self, mouse_pos, mouse_click):
+        return self.rect.collidepoint(mouse_pos) and mouse_click
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/ui/drawing.py
+import pygame
+from constants import BLACK, RED, GREEN, BROWN, BLUE, GOLD, WHITE, WIDTH, HEIGHT
+
+# Initialize fonts
+def init_fonts():
+    fonts = {
+        'small': pygame.font.SysFont('Arial', 18),
+        'medium': pygame.font.SysFont('Arial', 24),
+        'large': pygame.font.SysFont('Arial', 32),
+        'title': pygame.font.SysFont('Arial', 48, bold=True)
+    }
+    return fonts
+
+def draw_health_bar(surface, x, y, width, height, value, max_value, border_color=BLACK, back_color=RED, fill_color=GREEN):
+    """Draw a health or stamina bar with border"""
+    # Draw background
+    pygame.draw.rect(surface, back_color, (x, y, width, height))
+    
+    # Draw fill amount
+    fill_width = int(width * (value / max_value))
+    pygame.draw.rect(surface, fill_color, (x, y, fill_width, height))
+    
+    # Draw border
+    pygame.draw.rect(surface, border_color, (x, y, width, height), 2)
+
+def draw_battle_arena(surface, player, enemy, battle_log, battle_turn, fonts):
+    """Draw the battle arena screen with improved HUD showing health and stamina bars"""
+    # Background
+    surface.fill((50, 50, 100))  # Dark blue background for arena
+    
+    # Ground
+    pygame.draw.rect(surface, BROWN, (0, 400, WIDTH, 200))
+    
+    # Draw characters
+    player.draw(surface)
+    enemy.draw(surface)
+    
+    # Draw battle HUD
+    title_text = fonts['large'].render("BATTLE", True, WHITE)
+    title_rect = title_text.get_rect(midtop=(WIDTH/2, 20))
+    surface.blit(title_text, title_rect)
+    
+    # Player HUD - Left side
+    player_hud_rect = pygame.Rect(20, 70, 220, 100)
+    pygame.draw.rect(surface, (0, 0, 0, 128), player_hud_rect)
+    
+    # Highlight active turn
+    if battle_turn == "player":
+        pygame.draw.rect(surface, GOLD, player_hud_rect, 3)
+    else:
+        pygame.draw.rect(surface, WHITE, player_hud_rect, 2)
+    
+    # Player name and level
+    player_name = fonts['medium'].render(f"{player.name} Lvl:{player.level}", True, WHITE)
+    surface.blit(player_name, (player_hud_rect.x + 10, player_hud_rect.y + 10))
+    
+    # Player health bar
+    health_label = fonts['small'].render(f"HP: {player.health}/{player.max_health}", True, WHITE)
+    surface.blit(health_label, (player_hud_rect.x + 10, player_hud_rect.y + 40))
+    draw_health_bar(surface, player_hud_rect.x + 10, player_hud_rect.y + 60, 
+                    200, 10, player.health, player.max_health)
+    
+    # Player stamina bar
+    stamina_label = fonts['small'].render(f"SP: {player.stamina}/{player.max_stamina}", True, WHITE)
+    surface.blit(stamina_label, (player_hud_rect.x + 10, player_hud_rect.y + 75))
+    draw_health_bar(surface, player_hud_rect.x + 10, player_hud_rect.y + 95, 
+                    200, 10, player.stamina, player.max_stamina, fill_color=BLUE)
+    
+    # Enemy HUD - Right side
+    enemy_hud_rect = pygame.Rect(WIDTH - 240, 70, 220, 100)
+    pygame.draw.rect(surface, (0, 0, 0, 128), enemy_hud_rect)
+    
+    # Highlight active turn
+    if battle_turn == "enemy":
+        pygame.draw.rect(surface, GOLD, enemy_hud_rect, 3)
+    else:
+        pygame.draw.rect(surface, WHITE, enemy_hud_rect, 2)
+    
+    # Enemy name and level
+    enemy_name = fonts['medium'].render(f"{enemy.name} Lvl:{enemy.level}", True, WHITE)
+    enemy_name_rect = enemy_name.get_rect(topleft=(enemy_hud_rect.x + 10, enemy_hud_rect.y + 10))
+    surface.blit(enemy_name, enemy_name_rect)
+    
+    # Enemy health bar
+    enemy_health = fonts['small'].render(f"HP: {enemy.health}/{enemy.max_health}", True, WHITE)
+    surface.blit(enemy_health, (enemy_hud_rect.x + 10, enemy_hud_rect.y + 40))
+    draw_health_bar(surface, enemy_hud_rect.x + 10, enemy_hud_rect.y + 60, 
+                    200, 10, enemy.health, enemy.max_health)
+    
+    # Enemy stamina bar
+    enemy_stamina = fonts['small'].render(f"SP: {enemy.stamina}/{enemy.max_stamina}", True, WHITE)
+    surface.blit(enemy_stamina, (enemy_hud_rect.x + 10, enemy_hud_rect.y + 75))
+    draw_health_bar(surface, enemy_hud_rect.x + 10, enemy_hud_rect.y + 95, 
+                    200, 10, enemy.stamina, enemy.max_stamina, fill_color=BLUE)
+    
+    # Turn indicator text
+    turn_text = fonts['medium'].render(f"{battle_turn.capitalize()}'s Turn", True, GOLD)
+    turn_rect = turn_text.get_rect(center=(WIDTH/2, 85))
+    surface.blit(turn_text, turn_rect)
+    
+    # Battle log (last 5 messages)
+    log_height = 120
+    log_rect = pygame.Rect(50, HEIGHT - log_height - 100, WIDTH - 100, log_height)
+    pygame.draw.rect(surface, (0, 0, 0, 180), log_rect)  # Semi-transparent background
+    pygame.draw.rect(surface, WHITE, log_rect, 2)  # Border
+    
+    # Display the log messages
+    for i, msg in enumerate(battle_log[-5:]):
+        text = fonts['small'].render(msg, True, WHITE)
+        surface.blit(text, (log_rect.x + 10, log_rect.y + 10 + i * 25))
+    
+# Modified version of CHARACTER CREATION in ui/screens.py
+def draw_character_creation(surface, buttons, input_name, current_stats, total_points, fonts):
+    """Draw the character creation screen with stat distribution"""
+    # Background
+    surface.fill((30, 30, 50))
+    
+    # Title
+    title_text = fonts['title'].render("CHARACTER CREATION", True, WHITE)
+    title_rect = title_text.get_rect(center=(WIDTH/2, 60))
+    surface.blit(title_text, title_rect)
+    
+    # Name input box
+    pygame.draw.rect(surface, WHITE, (WIDTH/2 - 150, 140, 300, 40), 2)
+    name_label = fonts['medium'].render("Character Name:", True, WHITE)
+    surface.blit(name_label, (WIDTH/2 - 150, 110))
+    
+    # Display entered name
+    name_text = fonts['medium'].render(input_name, True, WHITE)
+    surface.blit(name_text, (WIDTH/2 - 140, 150))
+    
+    # Calculate remaining points
+    used_points = sum(current_stats.values())
+    remaining_points = total_points - used_points
+    
+    # Stat distribution title
+    stat_title = fonts['medium'].render(f"Distribute Stat Points: {remaining_points} remaining", True, WHITE)
+    surface.blit(stat_title, (WIDTH/2 - 150, 200))
+    
+    # Stat explanations
+    stat_explanations = {
+        'strength': "Increases damage and health",
+        'agility': "Improves accuracy and stamina",
+        'defense': "Reduces damage taken"
+    }
+    
+    # Draw stat distribution bars and values
+    y_position = 240
+    for i, (stat, value) in enumerate(current_stats.items()):
+        # Stat name and value
+        stat_text = fonts['medium'].render(f"{stat.capitalize()}: {value}", True, GOLD)
+        surface.blit(stat_text, (WIDTH/2 - 150, y_position))
+        
+        # + and - buttons
+        # Minus button (only enabled if value > 0)
+        minus_color = RED if value > 0 else GRAY
+        pygame.draw.rect(surface, minus_color, (WIDTH/2 - 180, y_position, 25, 25))
+        minus_text = fonts['medium'].render("-", True, WHITE)
+        minus_rect = minus_text.get_rect(center=(WIDTH/2 - 167, y_position + 12))
+        surface.blit(minus_text, minus_rect)
+        
+        # Plus button (only enabled if remaining points > 0)
+        plus_color = GREEN if remaining_points > 0 else GRAY
+        pygame.draw.rect(surface, plus_color, (WIDTH/2 + 20, y_position, 25, 25))
+        plus_text = fonts['medium'].render("+", True, WHITE)
+        plus_rect = plus_text.get_rect(center=(WIDTH/2 + 32, y_position + 12))
+        surface.blit(plus_text, plus_rect)
+        
+        # Stat explanation
+        explanation = fonts['small'].render(stat_explanations[stat], True, WHITE)
+        surface.blit(explanation, (WIDTH/2 + 50, y_position))
+        
+        y_position += 50
+    
+    # Stat point info
+    points_text = fonts['medium'].render(
+        f"You have {remaining_points} points remaining", 
+        True, 
+        WHITE if remaining_points > 0 else RED
+    )
+    surface.blit(points_text, (WIDTH/2 - 150, y_position))
+    
+    # Draw create button
+    create_button = pygame.Rect(WIDTH/2 - 100, y_position + 40, 200, 50)
+    button_color = GREEN if remaining_points == 0 else GRAY  # Only enabled if all points are spent
+    pygame.draw.rect(surface, button_color, create_button)
+    pygame.draw.rect(surface, BLACK, create_button, 2)  # Border
+    
+    create_text = fonts['medium'].render("Create Character", True, WHITE)
+    create_rect = create_text.get_rect(center=create_button.center)
+    surface.blit(create_text, create_rect)
+
+# --------------------------------------------------------------------------------
+
+# battle_arena/ui/screens.py
+import pygame
+from constants import WHITE, GOLD, BLACK, RED, BLUE, WIDTH, HEIGHT
+from ui.drawing import draw_health_bar, draw_battle_arena
+
+def draw_main_menu(surface, buttons, fonts):
+    surface.fill((30, 30, 50))
+    title_text = fonts['title'].render("BATTLE ARENA", True, GOLD)
+    title_rect = title_text.get_rect(center=(WIDTH/2, 100))
+    surface.blit(title_text, title_rect)
+    for button in buttons:
+        button.draw(surface)
+        
+def draw_pre_battle(surface, player, enemy, button, battle_timer, fonts):
+    surface.fill((30, 30, 80))
+    title_text = fonts['title'].render("BATTLE PREPARATION", True, GOLD)
+    title_rect = title_text.get_rect(center=(WIDTH/2, 50))
+    surface.blit(title_text, title_rect)
+    instruction_text = fonts['medium'].render("Review stats and click 'Start Battle!' when ready", True, WHITE)
+    instruction_rect = instruction_text.get_rect(center=(WIDTH/2, HEIGHT - 120))
+    surface.blit(instruction_text, instruction_rect)
+    player_title = fonts['large'].render(f"{player.name} (Level {player.level})", True, BLUE)
+    surface.blit(player_title, (100, 120))
+    enemy_title = fonts['large'].render(f"{enemy.name} (Level {enemy.level})", True, RED)
+    enemy_title_rect = enemy_title.get_rect(topright=(WIDTH - 100, 120))
+    surface.blit(enemy_title, enemy_title_rect)
+    vs_text = fonts['title'].render("VS", True, GOLD)
+    vs_rect = vs_text.get_rect(center=(WIDTH/2, 120))
+    surface.blit(vs_text, vs_rect)
+    stats = [
+        ("Health", player.health, player.max_health, enemy.health, enemy.max_health),
+        ("Stamina", player.stamina, player.max_stamina, enemy.stamina, enemy.max_stamina),
+        ("Strength", player.strength, player.strength, enemy.strength, enemy.strength),
+        ("Agility", player.agility, player.agility, enemy.agility, enemy.agility),
+        ("Armor", player.armor, player.armor, enemy.armor, enemy.armor),
+        ("Stamina Stat", player.stamina_stat, player.stamina_stat, enemy.stamina_stat, enemy.stamina_stat),
+        ("Vitality", player.vitality, player.vitality, enemy.vitality, enemy.vitality)  # Added vitality
+    ]
+    y_pos = 180
+    for stat_name, p_val, p_max, e_val, e_max in stats:
+        stat_text = fonts['medium'].render(stat_name, True, WHITE)
+        stat_rect = stat_text.get_rect(center=(WIDTH/2, y_pos))
+        surface.blit(stat_text, stat_rect)
+        if stat_name in ["Health", "Stamina"]:
+            p_text = fonts['medium'].render(f"{p_val}/{p_max}", True, WHITE)
+            draw_health_bar(surface, 100, y_pos + 25, 200, 15, p_val, p_max)
+        else:
+            p_text = fonts['medium'].render(f"{p_val}", True, WHITE)
+        p_rect = p_text.get_rect(topleft=(100, y_pos))
+        surface.blit(p_text, p_rect)
+        if stat_name in ["Health", "Stamina"]:
+            e_text = fonts['medium'].render(f"{e_val}/{e_max}", True, WHITE)
+            e_rect = e_text.get_rect(topright=(WIDTH - 100, y_pos))
+            surface.blit(e_text, e_rect)
+            draw_health_bar(surface, WIDTH - 300, y_pos + 25, 200, 15, e_val, e_max)
+        else:
+            e_text = fonts['medium'].render(f"{e_val}", True, WHITE)
+            e_rect = e_text.get_rect(topright=(WIDTH - 100, y_pos))
+            surface.blit(e_text, e_rect)
+        y_pos += 40  # Adjusted spacing to fit vitality
+    tip_text = fonts['small'].render("Tip: Assess your opponent's strengths and weaknesses before planning your attack!", True, GOLD)
+    tip_rect = tip_text.get_rect(center=(WIDTH/2, HEIGHT - 150))
+    surface.blit(tip_text, tip_rect)
+    if button:
+        button.draw(surface)
+        
+def draw_character_creation(surface, buttons, game_state, fonts):
+    surface.fill((30, 30, 50))
+    title_text = fonts['title'].render("CHARACTER CREATION", True, WHITE)
+    title_rect = title_text.get_rect(center=(WIDTH/2, 60))
+    surface.blit(title_text, title_rect)
+    pygame.draw.rect(surface, WHITE, (WIDTH/2 - 150, 140, 300, 40), 2)
+    name_label = fonts['medium'].render("Character Name:", True, WHITE)
+    surface.blit(name_label, (WIDTH/2 - 150, 110))
+    name_text = fonts['medium'].render(game_state.input_name, True, WHITE)
+    surface.blit(name_text, (WIDTH/2 - 140, 150))
+    stat_title = fonts['medium'].render(f"Distribute Stat Points: {game_state.get_remaining_points()} remaining", True, WHITE)
+    surface.blit(stat_title, (WIDTH/2 - 150, 200))
+    stat_explanations = {
+        'strength': "Increases damage",
+        'agility': "Improves accuracy and move speed",
+        'defense': "Reduces damage taken",
+        'stamina': "Boosts max stamina and regeneration",
+        'vitality': "Increases max health"  # Added vitality
+    }
+    y_position = 240
+    for i, (stat, value) in enumerate(game_state.current_stats.items()):
+        stat_text = fonts['medium'].render(f"{stat.capitalize()}: {value}", True, GOLD)
+        surface.blit(stat_text, (WIDTH/2 - 150, y_position))
+        explanation = fonts['small'].render(stat_explanations[stat], True, WHITE)
+        surface.blit(explanation, (WIDTH/2 + 50, y_position))
+        y_position += 40  # Adjusted spacing
+    points_text = fonts['medium'].render(
+        f"You have {game_state.get_remaining_points()} points remaining", 
+        True, 
+        WHITE if game_state.get_remaining_points() > 0 else RED
+    )
+    surface.blit(points_text, (WIDTH/2 - 150, y_position))
+    for button in buttons:
+        button.draw(surface)
+
+def draw_arena_menu(surface, player, buttons, battles_won, fonts):
+    surface.fill((50, 30, 30))
+    title_text = fonts['title'].render("ARENA MENU", True, WHITE)
+    title_rect = title_text.get_rect(center=(WIDTH/2, 60))
+    surface.blit(title_text, title_rect)
+    info_text = fonts['medium'].render(f"{player.name} (Level {player.level}) - Gold: {player.gold}", True, GOLD)
+    info_rect = info_text.get_rect(center=(WIDTH/2, 120))
+    surface.blit(info_text, info_rect)
+    battles_text = fonts['medium'].render(f"Battles Won: {battles_won}", True, WHITE)
+    battles_rect = battles_text.get_rect(center=(WIDTH/2, 160))
+    surface.blit(battles_text, battles_rect)
+    bar_width = 300
+    bar_height = 20
+    health_label = fonts['small'].render(f"Health: {player.health}/{player.max_health}", True, WHITE)
+    surface.blit(health_label, (WIDTH/2 - bar_width/2, 190))
+    draw_health_bar(surface, WIDTH/2 - bar_width/2, 210, bar_width, bar_height, 
+                   player.health, player.max_health)
+    stamina_label = fonts['small'].render(f"Stamina: {player.stamina}/{player.max_stamina}", True, WHITE)
+    surface.blit(stamina_label, (WIDTH/2 - bar_width/2, 240))
+    draw_health_bar(surface, WIDTH/2 - bar_width/2, 260, bar_width, bar_height, 
+                   player.stamina, player.max_stamina, fill_color=BLUE)
+    for button in buttons:
+        button.draw(surface)
+
+def draw_character_stats(surface, player, button, fonts):
+    surface.fill((30, 50, 30))
+    title_text = fonts['title'].render("CHARACTER STATS", True, WHITE)
+    title_rect = title_text.get_rect(center=(WIDTH/2, 50))
+    surface.blit(title_text, title_rect)
+    info_text = fonts['large'].render(f"{player.name}", True, GOLD)
+    info_rect = info_text.get_rect(center=(WIDTH/2, 100))
+    surface.blit(info_text, info_rect)
+    stats = [
+        f"Level: {player.level}",
+        f"Experience: {player.experience}/{player.exp_to_level}",
+        f"Health: {player.health}/{player.max_health}",
+        f"Stamina: {player.stamina}/{player.max_stamina}",
+        f"Strength: {player.strength}",
+        f"Agility: {player.agility}",
+        f"Armor: {player.armor}",
+        f"Stamina Stat: {player.stamina_stat}",
+        f"Vitality: {player.vitality}",  # Added vitality
+        f"Gold: {player.gold}",
+        f"Weapon: {player.equipped_weapon} (Damage: {player.weapons[player.equipped_weapon]})",
+        f"Armor: {player.equipped_armor} (Protection: {player.armor_items[player.equipped_armor]})"
+    ]
+    for i, stat in enumerate(stats):
+        stat_text = fonts['medium'].render(stat, True, WHITE)
+        surface.blit(stat_text, (WIDTH/2 - 150, 150 + i * 30))
+    skill_title = fonts['large'].render("Skills:", True, GOLD)
+    surface.blit(skill_title, (WIDTH/2 - 150, 450))
+    y_offset = 490
+    for skill_name, skill_info in player.skills.items():
+        skill_text = fonts['medium'].render(
+            f"{skill_name}: Damage x{skill_info['damage']}, "
+            f"Accuracy {int(skill_info['accuracy']*100)}%, "
+            f"Cost {skill_info['stamina_cost']} stamina", 
+            True, WHITE
+        )
+        surface.blit(skill_text, (WIDTH/2 - 150, y_offset))
+        y_offset += 30
+    button.draw(surface)
+
+def draw_game_over(surface, player, battles_won, buttons, fonts):
+    surface.fill((10, 10, 10))
+    title_text = fonts['title'].render("GAME OVER", True, RED)
+    title_rect = title_text.get_rect(center=(WIDTH/2, 100))
+    surface.blit(title_text, title_rect)
+    stats_text = [
+        f"Warrior: {player.name}",
+        f"Level Reached: {player.level}",
+        f"Battles Won: {battles_won}",
+        f"Gold Earned: {player.gold}"
+    ]
+    for i, text in enumerate(stats_text):
+        stat = fonts['medium'].render(text, True, WHITE)
+        stat_rect = stat.get_rect(center=(WIDTH/2, 200 + i * 40))
+        surface.blit(stat, stat_rect)
+    for button in buttons:
+        button.draw(surface)
+
+from ui.drawing import draw_health_bar
+
+# --------------------------------------------------------------------------------
+

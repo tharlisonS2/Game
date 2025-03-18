@@ -33,7 +33,8 @@ class Character:
         self.equipped_armor = "Cloth Tunic"
         self.skills = {
             "Quick Strike": {"damage": 0.8, "accuracy": 0.9, "stamina_cost": 10},
-            "Heavy Strike": {"damage": 1.5, "accuracy": 0.7, "stamina_cost": 20}
+            "Heavy Strike": {"damage": 1.5, "accuracy": 0.7, "stamina_cost": 20},
+            "Leap Attack": {"damage": 1.8, "accuracy": 0.65, "stamina_cost": 30}
         }
         
         self.is_attacking = False
@@ -49,14 +50,45 @@ class Character:
 
     def attack(self, enemy, skill_name):
         distance = abs(self.position[0] - enemy.position[0])
-        if distance > 100:
-            return {"success": False, "message": f"{self.name} is too far to attack {enemy.name}!"}
-        
         skill = self.skills[skill_name]
-        if self.stamina < skill["stamina_cost"]:
-            return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
         
-        self.stamina -= skill["stamina_cost"]
+        # Special handling for Leap Attack
+        if skill_name == "Leap Attack":
+            if distance <= 100:
+                return {"success": False, "message": f"{self.name} is already too close for Leap Attack!"}
+            if self.stamina < skill["stamina_cost"]:
+                return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
+            
+            # Leap toward the enemy with agility-based scaling
+            self.stamina -= skill["stamina_cost"]
+            leap_distance = 100 + (self.agility * 5)  # Base 100 + 5 per agility point
+            if self.position[0] < enemy.position[0]:
+                # Leap right toward enemy
+                new_position = min(self.position[0] + leap_distance, enemy.position[0] - 100)
+                self.position[0] = min(new_position, WIDTH - 50)
+            else:
+                # Leap left toward enemy
+                new_position = max(self.position[0] - leap_distance, enemy.position[0] + 100)
+                self.position[0] = max(50, new_position)
+            
+            # Check new distance after leap
+            new_distance = abs(self.position[0] - enemy.position[0])
+            if new_distance > 100:
+                return {
+                    "success": True,
+                    "hit": False,
+                    "damage": 0,
+                    "message": f"{self.name} leaps toward {enemy.name} but is still too far to hit!"
+                }
+        else:
+            # Normal attack range check
+            if distance > 100:
+                return {"success": False, "message": f"{self.name} is too far to attack {enemy.name}!"}
+            if self.stamina < skill["stamina_cost"]:
+                return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
+            self.stamina -= skill["stamina_cost"]
+        
+        # Proceed with attack animation and damage calculation
         self.is_attacking = True
         self.attack_frame = 0
         
@@ -71,17 +103,23 @@ class Character:
             enemy.health = max(0, enemy.health - damage_reduced)
             enemy.is_hit = True
             enemy.hit_frame = 0
+            message = (f"{self.name} leaps and hits {enemy.name} for {damage_reduced} damage!" 
+                      if skill_name == "Leap Attack" 
+                      else f"{self.name} hits {enemy.name} with {skill_name} for {damage_reduced} damage!")
             return {
                 "success": True, 
                 "hit": True, 
                 "damage": damage_reduced,
-                "message": f"{self.name} hits {enemy.name} with {skill_name} for {damage_reduced} damage!"
+                "message": message
             }
+        message = (f"{self.name}'s Leap Attack missed {enemy.name}!" 
+                  if skill_name == "Leap Attack" 
+                  else f"{self.name}'s {skill_name} missed {enemy.name}!")
         return {
             "success": True, 
             "hit": False, 
             "damage": 0,
-            "message": f"{self.name}'s {skill_name} missed {enemy.name}!"
+            "message": message
         }
 
     def rest(self):
@@ -124,14 +162,12 @@ class Character:
         new_position = self.position[0] - self.move_speed
         
         if enemy and self.position[0] > enemy.position[0]:
-            # Player is to the right of enemy, moving left toward them
-            min_position = enemy.position[0] + 100  # Ensure 100-unit distance when approaching
+            min_position = enemy.position[0] + 100
             if new_position < min_position:
                 new_position = min_position
                 self.position[0] = new_position
                 return {"success": True, "message": f"{self.name} moves left and stops near {enemy.name}!"}
         
-        # Allow retreating freely if already left of enemy or no restriction applies
         self.position[0] = max(50, new_position)
         return {"success": True, "message": f"{self.name} moves left!"}
 
@@ -145,14 +181,12 @@ class Character:
         new_position = self.position[0] + self.move_speed
         
         if enemy and self.position[0] < enemy.position[0]:
-            # Player is to the left of enemy, moving right toward them
-            max_position = enemy.position[0] - 100  # Ensure 100-unit distance when approaching
+            max_position = enemy.position[0] - 100
             if new_position > max_position:
                 new_position = max_position
                 self.position[0] = new_position
                 return {"success": True, "message": f"{self.name} moves right and stops near {enemy.name}!"}
         
-        # Allow moving right freely if already right of enemy or no restriction applies
         self.position[0] = min(WIDTH - 50, new_position)
         return {"success": True, "message": f"{self.name} moves right!"}
 

@@ -53,11 +53,12 @@ def main():
     pre_battle_button = Button(WIDTH/2 - 100, HEIGHT - 80, 200, 40, "Start Battle!")
     
     battle_buttons = [
-        Button(80, 460, 120, 40, "Move Left", color=BLUE, hover_color=GRAY),
-        Button(210, 460, 120, 40, "Move Right", color=BLUE, hover_color=GRAY),
-        Button(340, 460, 120, 40, "Quick Strike"),
-        Button(470, 460, 120, 40, "Heavy Strike"),
-        Button(600, 460, 120, 40, "Rest")
+        Button(50, 460, 100, 40, "Move Left", color=BLUE, hover_color=GRAY),
+        Button(160, 460, 100, 40, "Move Right", color=BLUE, hover_color=GRAY),
+        Button(270, 460, 100, 40, "Quick Strike"),
+        Button(380, 460, 100, 40, "Heavy Strike"),
+        Button(490, 460, 100, 40, "Leap Attack"),  # New button
+        Button(600, 460, 100, 40, "Rest")
     ]
     
     stats_back_button = Button(WIDTH/2 - 100, 550, 200, 40, "Back")
@@ -158,7 +159,6 @@ def main():
             
             if game_state.battle_turn == "player":
                 for button in battle_buttons:
-                    # Fix button activation logic
                     if button.text == "Move Left":
                         if game_state.player.stamina < game_state.player.move_stamina_cost or game_state.player.position[0] <= 50:
                             button.color = GRAY
@@ -170,6 +170,15 @@ def main():
                         if (within_attack_range or 
                             game_state.player.stamina < game_state.player.move_stamina_cost or 
                             game_state.player.position[0] >= WIDTH - 50):
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        else:
+                            button.color = BLUE
+                            button.hover_color = GRAY
+                    elif button.text == "Leap Attack":
+                        if (within_attack_range or 
+                            game_state.player.stamina < game_state.player.skills["Leap Attack"]["stamina_cost"] or 
+                            game_state.player.position[0] >= game_state.enemy.position[0]):  # Fixed: Use game_state.enemy
                             button.color = GRAY
                             button.hover_color = GRAY
                         else:
@@ -199,6 +208,8 @@ def main():
                             result = game_state.player.attack(game_state.enemy, "Quick Strike")
                         elif button.text == "Heavy Strike":
                             result = game_state.player.attack(game_state.enemy, "Heavy Strike")
+                        elif button.text == "Leap Attack":
+                            result = game_state.player.attack(game_state.enemy, "Leap Attack")
                         elif button.text == "Rest":
                             result = game_state.player.rest()
                         
@@ -218,7 +229,6 @@ def main():
             
             if game_state.battle_turn == "enemy" and game_state.battle_action_delay <= 0:
                 result = game_state.enemy.choose_action(game_state.player)
-                # Update enemy movement to account for collision with player
                 if "moves left" in result["message"]:
                     result = game_state.enemy.move_left(game_state.player)
                 elif "moves right" in result["message"]:

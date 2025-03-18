@@ -22,7 +22,8 @@ class Enemy(Character):
         self.exp_reward = 20 + (level * 10)
         self.skills = {
             "Strike": {"damage": 1.0, "accuracy": 0.8, "stamina_cost": 10},
-            "Fierce Attack": {"damage": 1.3, "accuracy": 0.6, "stamina_cost": 15}
+            "Fierce Attack": {"damage": 1.3, "accuracy": 0.6, "stamina_cost": 15},
+            "Leap Attack": {"damage": 1.8, "accuracy": 0.65, "stamina_cost": 30}
         }
         self.max_health = 80 + (self.vitality * 10)
         self.health = self.max_health
@@ -30,29 +31,38 @@ class Enemy(Character):
         self.stamina = self.max_stamina
         self.base_position = (600, 300)
         self.position = list(self.base_position)
-        self.move_speed = 5 + self.agility * 2  # Increased agility impact on movement
-        self.move_stamina_cost = 5  # Base stamina cost for movement
+        self.move_speed = 5 + self.agility * 2
+        self.move_stamina_cost = 5
         self.color = (200, 50, 50)
 
     def choose_action(self, player):
         distance = abs(self.position[0] - player.position[0])
         
-        if self.stamina < 15:
+        # If stamina is too low, rest
+        if self.stamina < self.skills["Strike"]["stamina_cost"]:
             return self.rest()
         
+        # Out of attack range
         if distance > 100:
-            if self.position[0] > player.position[0]:
+            # Prioritize Leap Attack when out of range and stamina allows
+            if (self.stamina >= self.skills["Leap Attack"]["stamina_cost"] and 
+                random.random() < 0.7):  # 70% chance to leap
+                return self.attack(player, "Leap Attack")
+            # Move toward player otherwise
+            elif self.position[0] > player.position[0]:
                 return self.move_left(player)
             else:
                 return self.move_right(player)
-        # Within range, only attack or rest, no movement
-        if self.health < self.max_health * 0.3:
+        
+        # Within attack range
+        if self.health < self.max_health * 0.3:  # Low health: prioritize stronger attacks
             if self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
                 return self.attack(player, "Fierce Attack")
             return self.attack(player, "Strike")
-        else:
-            if random.random() < 0.7:
+        else:  # Normal health: mix of attacks
+            roll = random.random()
+            if roll < 0.4:
                 return self.attack(player, "Strike")
-            elif self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
+            elif roll < 0.7 and self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
                 return self.attack(player, "Fierce Attack")
-            return self.attack(player, "Strike")
+            return self.attack(player, "Strike")  # Default to Strike if Leap isn't viable
