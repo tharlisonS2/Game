@@ -59,9 +59,9 @@ class Character:
             if self.stamina < skill["stamina_cost"]:
                 return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
             
-            # Leap toward the enemy with agility-based scaling
+            # Leap toward the enemy with fixed 2.5x walk move scaling
             self.stamina -= skill["stamina_cost"]
-            leap_distance = 100 + (self.agility * 5)  # Base 100 + 5 per agility point
+            leap_distance = self.move_speed * 2.5  # 2.5x the walk move distance
             if self.position[0] < enemy.position[0]:
                 # Leap right toward enemy
                 new_position = min(self.position[0] + leap_distance, enemy.position[0] - 100)

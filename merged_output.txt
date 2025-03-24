@@ -74,7 +74,7 @@ class Character:
         self.skills = {
             "Quick Strike": {"damage": 0.8, "accuracy": 0.9, "stamina_cost": 10},
             "Heavy Strike": {"damage": 1.5, "accuracy": 0.7, "stamina_cost": 20},
-            "Leap Attack": {"damage": 1.8, "accuracy": 0.65, "stamina_cost": 30}  # Removed leap_distance
+            "Leap Attack": {"damage": 1.8, "accuracy": 0.65, "stamina_cost": 30}
         }
         
         self.is_attacking = False
@@ -99,17 +99,27 @@ class Character:
             if self.stamina < skill["stamina_cost"]:
                 return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
             
-            # Leap toward the enemy with agility-based scaling
+            # Leap toward the enemy with fixed 2.5x walk move scaling
             self.stamina -= skill["stamina_cost"]
-            leap_distance = 100 + (self.agility * 5)  # Base 100 + 5 per agility point
+            leap_distance = self.move_speed * 2.5  # 2.5x the walk move distance
             if self.position[0] < enemy.position[0]:
                 # Leap right toward enemy
                 new_position = min(self.position[0] + leap_distance, enemy.position[0] - 100)
                 self.position[0] = min(new_position, WIDTH - 50)
             else:
-                # Leap left toward enemy (fix for enemies at 600)
+                # Leap left toward enemy
                 new_position = max(self.position[0] - leap_distance, enemy.position[0] + 100)
                 self.position[0] = max(50, new_position)
+            
+            # Check new distance after leap
+            new_distance = abs(self.position[0] - enemy.position[0])
+            if new_distance > 100:
+                return {
+                    "success": True,
+                    "hit": False,
+                    "damage": 0,
+                    "message": f"{self.name} leaps toward {enemy.name} but is still too far to hit!"
+                }
         else:
             # Normal attack range check
             if distance > 100:
@@ -118,6 +128,7 @@ class Character:
                 return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
             self.stamina -= skill["stamina_cost"]
         
+        # Proceed with attack animation and damage calculation
         self.is_attacking = True
         self.attack_frame = 0
         
@@ -308,10 +319,9 @@ class Enemy(Character):
         
         # Out of attack range
         if distance > 100:
-            # Prioritize Leap Attack when positioned correctly and stamina allows
+            # Prioritize Leap Attack when out of range and stamina allows
             if (self.stamina >= self.skills["Leap Attack"]["stamina_cost"] and 
-                self.position[0] > player.position[0] and 
-                random.random() < 0.7):  # Increased probability to 70%
+                random.random() < 0.7):  # 70% chance to leap
                 return self.attack(player, "Leap Attack")
             # Move toward player otherwise
             elif self.position[0] > player.position[0]:
@@ -330,9 +340,7 @@ class Enemy(Character):
                 return self.attack(player, "Strike")
             elif roll < 0.7 and self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
                 return self.attack(player, "Fierce Attack")
-            elif self.stamina >= self.skills["Leap Attack"]["stamina_cost"]:
-                return self.attack(player, "Leap Attack")  # Use Leap Attack even in range for variety
-            return self.attack(player, "Strike")
+            return self.attack(player, "Strike")  # Default to Strike if Leap isn't viable
 
 # --------------------------------------------------------------------------------
 
