@@ -57,8 +57,10 @@ def main():
         Button(160, 460, 100, 40, "Move Right", color=BLUE, hover_color=GRAY),
         Button(270, 460, 100, 40, "Quick Strike"),
         Button(380, 460, 100, 40, "Heavy Strike"),
-        Button(490, 460, 100, 40, "Leap Attack"),  # New button
-        Button(600, 460, 100, 40, "Rest")
+        Button(490, 460, 100, 40, "Leap Attack"),
+        Button(600, 460, 100, 40, "Rest"),
+        Button(650, 460, 70, 40, "Jump Fwd", color=BLUE, hover_color=GRAY),  # Jump Forward
+        Button(730, 460, 70, 40, "Jump Bwd", color=BLUE, hover_color=GRAY)   # Jump Backward
     ]
     
     stats_back_button = Button(WIDTH/2 - 100, 550, 200, 40, "Back")
@@ -178,7 +180,21 @@ def main():
                     elif button.text == "Leap Attack":
                         if (within_attack_range or 
                             game_state.player.stamina < game_state.player.skills["Leap Attack"]["stamina_cost"] or 
-                            game_state.player.position[0] >= game_state.enemy.position[0]):  # Fixed: Use game_state.enemy
+                            game_state.player.position[0] >= game_state.enemy.position[0]):
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        else:
+                            button.color = BLUE
+                            button.hover_color = GRAY
+                    elif button.text in ["Jump Fwd", "Jump Bwd"]:
+                        if (game_state.player.stamina < game_state.player.jump_stamina_cost or 
+                            game_state.player.is_jumping):
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        elif button.text == "Jump Fwd" and game_state.player.position[0] >= WIDTH - 50:
+                            button.color = GRAY
+                            button.hover_color = GRAY
+                        elif button.text == "Jump Bwd" and game_state.player.position[0] <= 50:
                             button.color = GRAY
                             button.hover_color = GRAY
                         else:
@@ -212,6 +228,10 @@ def main():
                             result = game_state.player.attack(game_state.enemy, "Leap Attack")
                         elif button.text == "Rest":
                             result = game_state.player.rest()
+                        elif button.text == "Jump Fwd":
+                            result = game_state.player.jump("forward")
+                        elif button.text == "Jump Bwd":
+                            result = game_state.player.jump("backward")
                         
                         if result:
                             game_state.battle_log.append(result["message"])

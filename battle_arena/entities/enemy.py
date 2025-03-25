@@ -29,7 +29,7 @@ class Enemy(Character):
         self.health = self.max_health
         self.max_stamina = 80 + (self.agility * 2) + (self.stamina_stat * 5)
         self.stamina = self.max_stamina
-        self.base_position = (600, 300)
+        self.base_position = (600, 400)  # Position[1] now represents the bottom of the body
         self.position = list(self.base_position)
         self.move_speed = 5 + self.agility * 2
         self.move_stamina_cost = 5
@@ -38,31 +38,40 @@ class Enemy(Character):
     def choose_action(self, player):
         distance = abs(self.position[0] - player.position[0])
         
-        # If stamina is too low, rest
         if self.stamina < self.skills["Strike"]["stamina_cost"]:
             return self.rest()
         
-        # Out of attack range
         if distance > 100:
-            # Prioritize Leap Attack when out of range and stamina allows
             if (self.stamina >= self.skills["Leap Attack"]["stamina_cost"] and 
-                random.random() < 0.7):  # 70% chance to leap
+                random.random() < 0.7):
                 return self.attack(player, "Leap Attack")
-            # Move toward player otherwise
+            elif (self.stamina >= self.jump_stamina_cost and 
+                  random.random() < 0.3 and not self.is_jumping):
+                # Jump toward player
+                direction = "forward" if self.position[0] > player.position[0] else "backward"
+                return self.jump(direction)
             elif self.position[0] > player.position[0]:
                 return self.move_left(player)
             else:
                 return self.move_right(player)
         
-        # Within attack range
-        if self.health < self.max_health * 0.3:  # Low health: prioritize stronger attacks
-            if self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
+        if self.health < self.max_health * 0.3:
+            if (self.stamina >= self.jump_stamina_cost and 
+                random.random() < 0.4 and not self.is_jumping):
+                # Jump away from player
+                direction = "backward" if self.position[0] > player.position[0] else "forward"
+                return self.jump(direction)
+            elif self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
                 return self.attack(player, "Fierce Attack")
             return self.attack(player, "Strike")
-        else:  # Normal health: mix of attacks
+        else:
             roll = random.random()
-            if roll < 0.4:
+            if roll < 0.3 and self.stamina >= self.jump_stamina_cost and not self.is_jumping:
+                # Random jump direction
+                direction = "forward" if random.random() < 0.5 else "backward"
+                return self.jump(direction)
+            elif roll < 0.6:
                 return self.attack(player, "Strike")
-            elif roll < 0.7 and self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
+            elif roll < 0.9 and self.stamina >= self.skills["Fierce Attack"]["stamina_cost"]:
                 return self.attack(player, "Fierce Attack")
-            return self.attack(player, "Strike")  # Default to Strike if Leap isn't viable
+            return self.attack(player, "Strike")

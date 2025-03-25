@@ -6,11 +6,11 @@ class Character:
     def __init__(self, name, stats=None):
         self.name = name
         self.level = 1
-        self.strength = 5  # Only affects damage
+        self.strength = 5
         self.agility = 5
         self.armor = 5
         self.stamina_stat = 5
-        self.vitality = 5  # New attribute for max_health
+        self.vitality = 5
         
         if stats:
             self.strength += stats.get('strength', 0)
@@ -41,37 +41,41 @@ class Character:
         self.attack_frame = 0
         self.is_hit = False
         self.hit_frame = 0
-        self.base_position = (200, 300)
+        self.base_position = (200, 400)  # Position[1] is bottom of body
         self.position = list(self.base_position)
-        self.move_speed = 5 + self.agility * 2  # Increased agility impact on movement
-        self.move_stamina_cost = 5  # Base stamina cost for movement
+        self.move_speed = 5 + self.agility * 2
+        self.move_stamina_cost = 5
         self.color = (50, 100, 200)
         self.font_small = pygame.font.SysFont('Arial', 18)
+        
+        self.is_jumping = False
+        self.jump_frame = 0
+        self.base_jump_height = 60  # Base jump height before agility scaling
+        self.base_jump_distance = 40  # Base jump distance before agility scaling
+        self.jump_height = self.base_jump_height + (self.agility * 2)  # Scales with agility (2 pixels per agility point)
+        self.jump_distance = self.base_jump_distance + (self.agility * 2)  # Scales with agility (2 pixels per agility point)
+        self.jump_stamina_cost = 15
+        self.jump_direction = None  # "forward" or "backward"
 
     def attack(self, enemy, skill_name):
         distance = abs(self.position[0] - enemy.position[0])
         skill = self.skills[skill_name]
         
-        # Special handling for Leap Attack
         if skill_name == "Leap Attack":
             if distance <= 100:
                 return {"success": False, "message": f"{self.name} is already too close for Leap Attack!"}
             if self.stamina < skill["stamina_cost"]:
                 return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
             
-            # Leap toward the enemy with fixed 2.5x walk move scaling
             self.stamina -= skill["stamina_cost"]
-            leap_distance = self.move_speed * 2.5  # 2.5x the walk move distance
+            leap_distance = self.move_speed * 2.5
             if self.position[0] < enemy.position[0]:
-                # Leap right toward enemy
                 new_position = min(self.position[0] + leap_distance, enemy.position[0] - 100)
                 self.position[0] = min(new_position, WIDTH - 50)
             else:
-                # Leap left toward enemy
                 new_position = max(self.position[0] - leap_distance, enemy.position[0] + 100)
                 self.position[0] = max(50, new_position)
             
-            # Check new distance after leap
             new_distance = abs(self.position[0] - enemy.position[0])
             if new_distance > 100:
                 return {
@@ -81,14 +85,12 @@ class Character:
                     "message": f"{self.name} leaps toward {enemy.name} but is still too far to hit!"
                 }
         else:
-            # Normal attack range check
             if distance > 100:
                 return {"success": False, "message": f"{self.name} is too far to attack {enemy.name}!"}
             if self.stamina < skill["stamina_cost"]:
                 return {"success": False, "message": f"{self.name} is too tired to use {skill_name}!"}
             self.stamina -= skill["stamina_cost"]
         
-        # Proceed with attack animation and damage calculation
         self.is_attacking = True
         self.attack_frame = 0
         
@@ -127,6 +129,19 @@ class Character:
         self.stamina = min(self.max_stamina, self.stamina + recovery)
         return {"success": True, "message": f"{self.name} rests and recovers {recovery} stamina!"}
 
+    def jump(self, direction):
+        if self.stamina < self.jump_stamina_cost:
+            return {"success": False, "message": f"{self.name} is too tired to jump!"}
+        if self.is_jumping:
+            return {"success": False, "message": f"{self.name} is already jumping!"}
+        
+        self.stamina -= self.jump_stamina_cost
+        self.is_jumping = True
+        self.jump_frame = 0
+        self.jump_direction = direction
+        direction_text = "forward" if direction == "forward" else "backward"
+        return {"success": True, "message": f"{self.name} jumps {direction_text}!"}
+
     def gain_experience(self, amount):
         self.experience += amount
         result = {"message": f"{self.name} gained {amount} experience!"}
@@ -149,7 +164,10 @@ class Character:
         self.health = self.max_health
         self.max_stamina = 80 + (self.agility * 2) + (self.stamina_stat * 5)
         self.stamina = self.max_stamina
-        self.move_speed = 5 + self.agility * 2  # Update move_speed with new formula
+        self.move_speed = 5 + self.agility * 2
+        # Update jump stats when agility changes
+        self.jump_height = self.base_jump_height + (self.agility * 2)
+        self.jump_distance = self.base_jump_distance + (self.agility * 2)
         return f"{self.name} has reached level {self.level}! Attributes increased!"
 
     def move_left(self, enemy=None):
@@ -201,31 +219,71 @@ class Character:
             if self.hit_frame > 10:
                 self.is_hit = False
                 self.hit_frame = 0
+        if self.is_jumping:
+            self.jump_frame += 1
+            total_frames = 20
+            if self.jump_frame <= 10:  # Ascending
+                self.position[1] = self.base_position[1] - (self.jump_height * (self.jump_frame / 10))
+                if self.jump_direction == "forward":
+                    self.position[0] += self.jump_distance / total_frames
+                elif self.jump_direction == "backward":
+                    self.position[0] -= self.jump_distance / total_frames
+            else:  # Descending
+                self.position[1] = self.base_position[1] - (self.jump_height * (1 - (self.jump_frame - 10) / 10))
+                if self.jump_direction == "forward":
+                    self.position[0] += self.jump_distance / total_frames
+                elif self.jump_direction == "backward":
+                    self.position[0] -= self.jump_distance / total_frames
+            
+            # Ensure position stays within bounds
+            self.position[0] = max(50, min(WIDTH - 50, self.position[0]))
+            
+            if self.jump_frame >= total_frames:
+                self.is_jumping = False
+                self.jump_frame = 0
+                self.jump_direction = None
+                self.position[1] = self.base_position[1]
 
     def draw(self, surface):
         color = self.color if not self.is_hit else (RED if self.hit_frame % 2 == 0 else self.color)
         position = list(self.position)
+        
         if self.is_attacking:
             if self.attack_frame < 5:
                 position[0] += self.attack_frame * 5
             else:
                 position[0] -= (self.attack_frame - 5) * 5
         
-        pygame.draw.circle(surface, color, (int(position[0]), int(position[1])), 30)
-        pygame.draw.rect(surface, color, (int(position[0]) - 20, int(position[1]) + 30, 40, 60))
-        if self.is_attacking:
-            pygame.draw.rect(surface, BROWN, (int(position[0]) + 20, int(position[1]) - 10, 40, 10))
+        # Define character dimensions
+        body_height = 60
+        head_radius = 30
         
+        # Body bottom is at position[1], head is above it
+        body_bottom = position[1]
+        body_top = body_bottom - body_height
+        head_center_y = body_top - head_radius
+        
+        # Draw body
+        pygame.draw.rect(surface, color, (int(position[0]) - 20, body_top, 40, body_height))
+        # Draw head
+        pygame.draw.circle(surface, color, (int(position[0]), int(head_center_y)), head_radius)
+        
+        # Draw weapon during attack
+        if self.is_attacking:
+            pygame.draw.rect(surface, BROWN, (int(position[0]) + 20, body_top - 10, 40, 10))
+        
+        # Draw health and stamina bars above the head
         health_width = 60
         health_percent = self.health / self.max_health
-        pygame.draw.rect(surface, RED, (int(position[0]) - 30, int(position[1]) - 50, health_width, 10))
-        pygame.draw.rect(surface, GREEN, (int(position[0]) - 30, int(position[1]) - 50, int(health_width * health_percent), 10))
+        pygame.draw.rect(surface, RED, (int(position[0]) - 30, head_center_y - 20, health_width, 10))
+        pygame.draw.rect(surface, GREEN, (int(position[0]) - 30, head_center_y - 20, int(health_width * health_percent), 10))
         
         stamina_width = 60
         stamina_percent = self.stamina / self.max_stamina
-        pygame.draw.rect(surface, (150, 150, 150), (int(position[0]) - 30, int(position[1]) - 38, stamina_width, 6))
-        pygame.draw.rect(surface, BLUE, (int(position[0]) - 30, int(position[1]) - 38, int(stamina_width * stamina_percent), 6))
+        pygame.draw.rect(surface, (150, 150, 150), (int(position[0]) - 30, head_center_y - 8, stamina_width, 6))
+        pygame.draw.rect(surface, BLUE, (int(position[0]) - 30, head_center_y - 8, int(stamina_width * stamina_percent), 6))
         
+        # Draw name above everything
         name_text = self.font_small.render(self.name, True, WHITE)
-        name_rect = name_text.get_rect(center=(int(position[0]), int(position[1]) - 60))
+        name_rect = name_text.get_rect(center=(int(position[0]), head_center_y - 30))
         surface.blit(name_text, name_rect)
