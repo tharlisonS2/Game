@@ -53,14 +53,17 @@ def main():
     pre_battle_button = Button(WIDTH/2 - 100, HEIGHT - 80, 200, 40, "Start Battle!")
     
     battle_buttons = [
-        Button(50, 460, 100, 40, "Move Left", color=BLUE, hover_color=GRAY),
-        Button(160, 460, 100, 40, "Move Right", color=BLUE, hover_color=GRAY),
-        Button(270, 460, 100, 40, "Quick Strike"),
-        Button(380, 460, 100, 40, "Heavy Strike"),
-        Button(490, 460, 100, 40, "Leap Attack"),
-        Button(600, 460, 100, 40, "Rest"),
-        Button(650, 460, 70, 40, "Jump Fwd", color=BLUE, hover_color=GRAY),  # Jump Forward
-        Button(730, 460, 70, 40, "Jump Bwd", color=BLUE, hover_color=GRAY)   # Jump Backward
+        # Movement buttons (top row)
+        Button(50, 420, 120, 40, "Move Left", color=(0, 120, 200), hover_color=(255, 215, 0), font_size=18),
+        Button(180, 420, 120, 40, "Move Right", color=(0, 120, 200), hover_color=(255, 215, 0), font_size=18),
+        # Attack buttons (middle row)
+        Button(50, 470, 120, 40, "Quick Strike", color=(200, 50, 50), hover_color=(255, 215, 0), font_size=18),
+        Button(180, 470, 120, 40, "Heavy Strike", color=(200, 50, 50), hover_color=(255, 215, 0), font_size=18),
+        Button(310, 470, 120, 40, "Leap Attack", color=(200, 50, 50), hover_color=(255, 215, 0), font_size=18),
+        # Utility buttons (bottom row)
+        Button(50, 520, 120, 40, "Rest", color=(50, 150, 50), hover_color=(255, 215, 0), font_size=18),
+        Button(180, 520, 120, 40, "Jump Fwd", color=(0, 120, 200), hover_color=(255, 215, 0), font_size=18),
+        Button(310, 520, 120, 40, "Jump Bwd", color=(0, 120, 200), hover_color=(255, 215, 0), font_size=18),
     ]
     
     stats_back_button = Button(WIDTH/2 - 100, 550, 200, 40, "Back")
@@ -161,65 +164,53 @@ def main():
             
             if game_state.battle_turn == "player":
                 for button in battle_buttons:
+                    # Reset button state
+                    button.set_disabled(False)
+                    button.color = button.base_color
+                    
+                    # Disable buttons based on conditions
                     if button.text == "Move Left":
                         if game_state.player.stamina < game_state.player.move_stamina_cost or game_state.player.position[0] <= 50:
-                            button.color = GRAY
-                            button.hover_color = GRAY
-                        else:
-                            button.color = BLUE
-                            button.hover_color = GRAY
+                            button.set_disabled(True)
                     elif button.text == "Move Right":
                         if (within_attack_range or 
                             game_state.player.stamina < game_state.player.move_stamina_cost or 
                             game_state.player.position[0] >= WIDTH - 50):
-                            button.color = GRAY
-                            button.hover_color = GRAY
-                        else:
-                            button.color = BLUE
-                            button.hover_color = GRAY
+                            button.set_disabled(True)
+                    elif button.text == "Quick Strike":
+                        if (game_state.player.stamina < game_state.player.skills["Quick Strike"]["stamina_cost"] or
+                            not within_attack_range):
+                            button.set_disabled(True)
+                    elif button.text == "Heavy Strike":
+                        if (game_state.player.stamina < game_state.player.skills["Heavy Strike"]["stamina_cost"] or
+                            not within_attack_range):
+                            button.set_disabled(True)
                     elif button.text == "Leap Attack":
                         if (within_attack_range or 
                             game_state.player.stamina < game_state.player.skills["Leap Attack"]["stamina_cost"] or 
                             game_state.player.position[0] >= game_state.enemy.position[0]):
-                            button.color = GRAY
-                            button.hover_color = GRAY
-                        else:
-                            button.color = BLUE
-                            button.hover_color = GRAY
-                    elif button.text in ["Jump Fwd", "Jump Bwd"]:
+                            button.set_disabled(True)
+                    elif button.text == "Rest":
+                        if game_state.player.stamina >= game_state.player.max_stamina:
+                            button.set_disabled(True)
+                    elif button.text == "Jump Fwd":
                         if (game_state.player.stamina < game_state.player.jump_stamina_cost or 
-                            game_state.player.is_jumping):
-                            button.color = GRAY
-                            button.hover_color = GRAY
-                        elif button.text == "Jump Fwd" and game_state.player.position[0] >= WIDTH - 50:
-                            button.color = GRAY
-                            button.hover_color = GRAY
-                        elif button.text == "Jump Bwd" and game_state.player.position[0] <= 50:
-                            button.color = GRAY
-                            button.hover_color = GRAY
-                        else:
-                            button.color = BLUE
-                            button.hover_color = GRAY
-                    else:
-                        button.color = BLUE
-                        button.hover_color = GRAY
+                            game_state.player.is_jumping or 
+                            game_state.player.position[0] >= WIDTH - 50):
+                            button.set_disabled(True)
+                    elif button.text == "Jump Bwd":
+                        if (game_state.player.stamina < game_state.player.jump_stamina_cost or 
+                            game_state.player.is_jumping or 
+                            game_state.player.position[0] <= 50):
+                            button.set_disabled(True)
                     
                     button.check_hover(mouse_pos)
                     if mouse_clicked and button.is_clicked(mouse_pos, mouse_clicked):
                         result = None
                         if button.text == "Move Left":
                             result = game_state.player.move_left(game_state.enemy)
-                            if result["success"]:
-                                game_state.battle_turn = "enemy"
-                                game_state.battle_action_delay = 30
                         elif button.text == "Move Right":
-                            if not within_attack_range:
-                                result = game_state.player.move_right(game_state.enemy)
-                                if result["success"]:
-                                    game_state.battle_turn = "enemy"
-                                    game_state.battle_action_delay = 30
-                            else:
-                                result = {"success": False, "message": f"{game_state.player.name} can only retreat left when in range!"}
+                            result = game_state.player.move_right(game_state.enemy)
                         elif button.text == "Quick Strike":
                             result = game_state.player.attack(game_state.enemy, "Quick Strike")
                         elif button.text == "Heavy Strike":
@@ -249,10 +240,6 @@ def main():
             
             if game_state.battle_turn == "enemy" and game_state.battle_action_delay <= 0:
                 result = game_state.enemy.choose_action(game_state.player)
-                if "moves left" in result["message"]:
-                    result = game_state.enemy.move_left(game_state.player)
-                elif "moves right" in result["message"]:
-                    result = game_state.enemy.move_right(game_state.player)
                 game_state.battle_log.append(result["message"])
                 if game_state.player.health <= 0:
                     game_state.battle_log.append(f"{game_state.player.name} has been defeated!")
